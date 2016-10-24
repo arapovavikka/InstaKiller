@@ -5,13 +5,13 @@ using System.Text;
 
 namespace InstaKiller.Model
 {
-    public class Comment
+    public class Session
     {
         public Guid Id { get; set; }
+        public long UserIp { get; set; }
         public Guid UserId { get; set; }
-        public Guid PhotoId { get; set; }
-        public string Text { get; set; }
-        public DateTime DateTime { get; set; }
-        public List<string> AllHashtags { get; set; }
+        public DateTime DateFrom { get; set; }
+        public DateTime DateTo { get; set; }
+        public long Token { get; set; }
     }
 }

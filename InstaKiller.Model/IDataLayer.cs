@@ -31,7 +31,8 @@ namespace InstaKiller.Model
         Comment UpdateComment(Comment commentUpdate);
 
         //Hashtag methods
-        //TODO: GetAllHashtags(Comment comment)
+        List<string> GetAllHashtags(Comment comment);
+        //TODO: delete string hashtag in param
         Comment AddHashtag(Comment comment, string hashtag);
         Guid GetHashtag(string hashtag);
         bool HaveHashtag(Comment comment, string hashtag);
@@ -43,9 +44,13 @@ namespace InstaKiller.Model
         void DeleteSubscription(Person user, Person friendUser);
         List<Person> GetSubscription(Person user);
 
-        //TODO: User subscribers 
+        //User subscribers 
+        bool HaveSubscriber(Person user, Person userSub);
+        List<Person> GetSubscribers(Person user);
 
         //TODO: Session
+        Session AddSession(Session session);
+        Session GetSession(Guid sessionId);
 
         //TODO: PersonMention - (@username)
     }

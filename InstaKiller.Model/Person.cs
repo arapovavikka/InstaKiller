@@ -14,7 +14,13 @@ namespace InstaKiller.Model
         public string Email { get; set; }
         public ulong PasswordHash { get; set; }
         public string About { get; set; }
-        public List<Person> Subscribers { get; set; } //TO DO
+        public List<Person> Subscribers { get; set; } 
         public List<Person> Subscriptions { get; set; }
+
+        public Person()
+        {
+            Subscribers = new List<Person>();
+            Subscriptions = new List<Person>();
+        }
     }
 }

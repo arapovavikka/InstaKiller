@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data.Odbc;
 using InstaKiller.Model;
 using System.Data.SqlClient;
+using System.Net.Configuration;
+using System.Xml.Linq;
 
 namespace InstaKiller.DataLayer.Sql
 {
@@ -24,7 +27,7 @@ namespace InstaKiller.DataLayer.Sql
                 using (var command = connection.CreateCommand())
                 {
                     comment.Id = Guid.NewGuid();
-                    comment.Date = DateTime.Now;
+                    comment.DateTime = DateTime.Now;
 
                     command.CommandText = @"insert into comment(id, photo_id, user_id, text, date_time) 
                         values (@id, @photo_id, @user_id, @text, @date_time)";
@@ -32,7 +35,7 @@ namespace InstaKiller.DataLayer.Sql
                     command.Parameters.AddWithValue("@photo_id", comment.PhotoId);
                     command.Parameters.AddWithValue("@user_id", comment.UserId);
                     command.Parameters.AddWithValue("@text", comment.Text);
-                    command.Parameters.AddWithValue("@date_time", comment.Date);
+                    command.Parameters.AddWithValue("@date_time", comment.DateTime);
 
                     command.ExecuteNonQuery();
                     return comment;
@@ -91,11 +94,9 @@ namespace InstaKiller.DataLayer.Sql
                 connection.Open();
                 using (var command = connection.CreateCommand())
                 {
-                    command.CommandText = @"update photo set date_time = @date_time, user_id = @user_id,
+                    command.CommandText = @"update photo set
                         image_url = @image_url where id = @id";
                     command.Parameters.AddWithValue(@"id", photoUpdate.Id);
-                    command.Parameters.AddWithValue(@"date_time", photoUpdate.TimeDate);
-                    command.Parameters.AddWithValue(@"user_id", photoUpdate.UserId);
                     command.Parameters.AddWithValue(@"image_url", photoUpdate.ImageUrl);
 
                     command.ExecuteNonQuery();
@@ -134,10 +135,9 @@ namespace InstaKiller.DataLayer.Sql
                 connection.Open();
                 using (var command = connection.CreateCommand())
                 {
-                    command.CommandText = @"update comment set date_time = @date_time, user_id = @user_id,
+                    command.CommandText = @"update comment set user_id = @user_id,
                         photo_id = @photo_id, text = @text where id = @id";
                     command.Parameters.AddWithValue(@"id", commentUpdate.Id);
-                    command.Parameters.AddWithValue(@"date_time", commentUpdate.Date);
                     command.Parameters.AddWithValue(@"user_id", commentUpdate.UserId);
                     command.Parameters.AddWithValue(@"photo_id", commentUpdate.PhotoId);
                     command.Parameters.AddWithValue(@"text", commentUpdate.Text);
@@ -148,6 +148,11 @@ namespace InstaKiller.DataLayer.Sql
             }
         }
 
+        public List<string> GetAllHashtags(Comment comment)
+        {
+            throw new NotImplementedException();
+        }
+
         public Comment GetComment(Guid commentId)
         {
             using (var connection = new SqlConnection(_connectionSql))
@@ -155,7 +160,7 @@ namespace InstaKiller.DataLayer.Sql
                 connection.Open();
                 using (var command = connection.CreateCommand())
                 {
-                    command.CommandText = @"select id, text, user_id, photo_id from comment where @id = id";
+                    command.CommandText = @"select id, text, user_id, photo_id, date_time from comment where @id = id";
                     command.Parameters.AddWithValue("@id", commentId);
                     using (var reader = command.ExecuteReader())
                     {
@@ -167,6 +172,7 @@ namespace InstaKiller.DataLayer.Sql
                                 Text = reader.GetString(reader.GetOrdinal("text")),
                                 UserId = reader.GetGuid(reader.GetOrdinal("user_id")),
                                 PhotoId = reader.GetGuid(reader.GetOrdinal("photo_id")),
+                                DateTime = reader.GetDateTime(reader.GetOrdinal("date_time"))
                             };
 
                         //if don't find comment in db
@@ -287,7 +293,9 @@ namespace InstaKiller.DataLayer.Sql
             }
         }
 
-        public void AddSubscription(Person user, Person userFriend)
+
+        //store subscription that have user (for ex he has subscription on userSubscription)
+        public void AddSubscription(Person user, Person userSubscription)
         {
             using (var connection = new SqlConnection(_connectionSql))
             {
@@ -296,18 +304,19 @@ namespace InstaKiller.DataLayer.Sql
                 {
                     var id = Guid.NewGuid();
 
-                    command.CommandText = @"insert into relation(id, user_id, friend_user_id) values(@id, @user_id,
-                        @friend_user_id)";
+                    command.CommandText = @"insert into subscription(id, user_id, user_subscription_id) values(@id, @user_id,
+                        @user_subscription_id)";
                     command.Parameters.AddWithValue(@"id", id);
                     command.Parameters.AddWithValue(@"user_id", user.Id);
-                    command.Parameters.AddWithValue(@"friend_user_id", userFriend.Id);
+                    command.Parameters.AddWithValue(@"user_subscription_id", userSubscription.Id);
 
                     command.ExecuteNonQuery();
+                    user.Subscriptions.Add(userSubscription);
                 }
             }
         }
 
-        public bool HaveSubscription(Person user, Person userAnother)
+        public bool HaveSubscription(Person user, Person userSubscripton)
         {
             using (var connection = new SqlConnection(_connectionSql))
             {
@@ -315,9 +324,29 @@ namespace InstaKiller.DataLayer.Sql
                 using (var command = connection.CreateCommand())
                 {
                     command.CommandText =
-                        @"select id from relation where @friend_user_id = friend_user_id and @user_id = user_id";
-                    command.Parameters.AddWithValue(@"friend_user_id", userAnother.Id);
+                        @"select id from subscription where @user_id = user_id and @user_subscription_id = user_subscription_id";
                     command.Parameters.AddWithValue(@"user_id", user.Id);
+                    command.Parameters.AddWithValue(@"user_subscription_id", userSubscripton.Id);
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        reader.Read();
+                        return reader.HasRows;
+                    }
+                }
+            }
+        }
+
+        public bool HaveSubscriber(Person user, Person userSubscription)
+        {
+            using (var connectiion = new SqlConnection(_connectionSql))
+            {
+                connectiion.Open();
+                using (var command = connectiion.CreateCommand())
+                {
+                    command.CommandText = "select id from realation where @user_subscribe_id = user_subscribe_id and @user_id = user_id";
+                    command.Parameters.AddWithValue(@"user_id", user.Id);
+                    command.Parameters.AddWithValue(@"user_subscribe_id", userSubscription.Id);
 
                     using (var reader = command.ExecuteReader())
                     {
@@ -330,42 +359,43 @@ namespace InstaKiller.DataLayer.Sql
 
         public List<Person> GetSubscription(Person user)
         {
-            List<Person> persons = new List<Person>();
+            List<Person> personsSubscription = new List<Person>();
             using (var connection = new SqlConnection(_connectionSql))
             {
                 connection.Open();
                 using (var command = connection.CreateCommand())
                 {
-                    command.CommandText = @"select * from relation where @user_id = user_id";
+                    command.CommandText = @"select * from subscription where @user_id = user_id";
                     command.Parameters.AddWithValue(@"user_id", user.Id);
 
                     using (var reader = command.ExecuteReader())
                     {
                         while (reader.Read())
                         {
-                            var userFriend = new Person
+                            var userSubscription = new Person
                             {
-                                Id = reader.GetGuid(reader.GetOrdinal(@"friend_user_id"))
+                                Id = reader.GetGuid(reader.GetOrdinal(@"user_subscription_id"))
                             };
-                            userFriend = GetUser(userFriend.Id);
-                            persons.Add(userFriend);
+                            userSubscription = GetUser(userSubscription.Id);
+                            personsSubscription.Add(userSubscription);
                         }
                     }
                 }
             }
-            return persons;
+            return personsSubscription;
         }
 
-        public void DeleteSubscription(Person user, Person userFriend)
+        //TODO:change Person to Guid
+        public void DeleteSubscription(Person user, Person userSubscription)
         {
             using (var connection = new SqlConnection(_connectionSql))
             {
                 connection.Open();
                 using (var command = connection.CreateCommand())
                 {
-                    command.CommandText = @"delete relation where @user_id = user_id and @friend_user_id = friend_user_id";
+                    command.CommandText = @"delete subscription where @user_id = user_id and @user_subscription_id = user_subscription_id";
                     command.Parameters.AddWithValue(@"user_id", user.Id);
-                    command.Parameters.AddWithValue(@"friend_user_id", userFriend.Id);
+                    command.Parameters.AddWithValue(@"user_subscription_id", userSubscription.Id);
 
                     command.ExecuteNonQuery();
                 }
@@ -388,6 +418,7 @@ namespace InstaKiller.DataLayer.Sql
                     command.Parameters.AddWithValue(@"photo_id", photo.Id);
 
                     command.ExecuteNonQuery();
+                    photo.UsersThatLike.Add(user);
                 }
             }
         }
@@ -591,6 +622,114 @@ namespace InstaKiller.DataLayer.Sql
                     command.ExecuteNonQuery();
                 }
             }
+        }
+
+        public bool HaveSubscribe(Person user, Person userSubscriber)
+        {
+            using (var connection = new SqlConnection(_connectionSql))
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = "select id from subscription where @user_subscription_id = user_subscription_id and @user_id = user_id";
+                    command.Parameters.AddWithValue(@"user_subscription_id", user.Id);
+                    command.Parameters.AddWithValue(@"user_id", userSubscriber.Id);
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        reader.Read();
+                        return reader.HasRows;
+                    }
+                }
+            }
+        }
+
+        public List<Person> GetSubscribers(Person user)
+        {
+            using (var connection = new SqlConnection(_connectionSql))
+            {
+                List<Person> subscribers = new List<Person>();
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = "select * from subscription where @user_subscription_id = user_subscription_id";
+                    command.Parameters.AddWithValue(@"user_subscription_id", user.Id);
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var userSubscriber = new Person
+                            {
+                                Id = reader.GetGuid(reader.GetOrdinal(@"user_id"))
+                            };
+                            userSubscriber = GetUser(userSubscriber.Id);
+                            subscribers.Add(userSubscriber);
+                        }
+                    }
+                }
+                return subscribers;
+            }
+        }
+
+        public Session AddSession(Session session)
+        {
+            using (var connection = new SqlConnection(_connectionSql))
+            {
+                session.Id = Guid.NewGuid();
+                // time?
+
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = "insert into session(id, user_id, user_ip, token, date_from, date_to) " +
+                                          "values(@id, @user_id, @user_ip, @token, @date_from, @date_to)";
+                    command.Parameters.AddWithValue(@"id", session.Id);
+                    command.Parameters.AddWithValue(@"user_id", session.UserId);
+                    command.Parameters.AddWithValue(@"token", session.Token);
+                    command.Parameters.AddWithValue(@"user_ip", session.UserIp);
+                    command.Parameters.AddWithValue(@"date_from", session.DateFrom);
+                    command.Parameters.AddWithValue(@"date_to", session.DateTo);
+
+                    command.ExecuteNonQuery();
+                }
+                return session;
+            }
+        }
+
+        public Session GetSession(Guid sessionId)
+        {
+            using (var connection = new SqlConnection(_connectionSql))
+            {
+                connection.Open();
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = "select id, user_id, user_ip, token, date_from, date_to from session where @id = id";
+                    command.Parameters.AddWithValue(@"id", sessionId);
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        reader.Read();
+                        if (!reader.HasRows)
+                            return new Session();
+                        else
+                            return new Session()
+                            {
+                                Id = reader.GetGuid(reader.GetOrdinal(@"id")),
+                                UserIp = reader.GetInt32(reader.GetOrdinal(@"user_ip")),
+                                UserId = reader.GetGuid(reader.GetOrdinal(@"user_id")),
+                                Token = reader.GetInt32(reader.GetOrdinal(@"token")),
+                                DateFrom = reader.GetDateTime(reader.GetOrdinal(@"date_from")),
+                                DateTo = reader.GetDateTime(reader.GetOrdinal(@"date_to"))
+                            };
+                    }
+                }
+            }
+        }
+
+        public void GetAllUsersSessions()
+        {
+            throw new NotImplementedException();
         }
     }
 }

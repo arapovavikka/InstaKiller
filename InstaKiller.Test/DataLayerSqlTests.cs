@@ -31,7 +31,7 @@ namespace InstaKiller.Test
                 Text = Guid.NewGuid().ToString(),
                 UserId = Guid.NewGuid(),
                 PhotoId = Guid.NewGuid(),
-                Date = DateTime.Now
+                DateTime = DateTime.Now
             };
         }
 
@@ -42,6 +42,18 @@ namespace InstaKiller.Test
                 UserId = Guid.NewGuid(),
                 ImageUrl = Guid.NewGuid().ToString(),
                 TimeDate = DateTime.Now
+            };
+        }
+
+        private static Session GenerateSession()
+        {
+            return new Session()
+            {
+                UserId = Guid.NewGuid(),
+                UserIp = new Random().Next(100000),
+                DateFrom = DateTime.Now,
+                DateTo = DateTime.Now.Add(new TimeSpan(3, 0, 0, 0)),
+                Token = new Random().Next(100000)
             };
         }
 
@@ -101,11 +113,16 @@ namespace InstaKiller.Test
         public void ShouldUpdatePhoto()
         {
             //arrange
+            var user = GenerateUser();
             var photo = GeneratePhoto();
             var photoUpdate = GeneratePhoto();
 
             //act
             var dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
+            user = dataLayer.AddUser(user);
+            photo.UserId = user.Id;
+            photoUpdate.UserId = user.Id;
+
             photo = dataLayer.AddPhoto(photo);
             photoUpdate.Id = photo.Id;
             photoUpdate = dataLayer.UpdatePhoto(photoUpdate);
@@ -136,11 +153,22 @@ namespace InstaKiller.Test
         public void ShouldUpdateComment()
         {
             //arrange
+            var user = GenerateUser();
+            var photo = GeneratePhoto();
             var comment = GenerateComment();
             var commentUpdate = GenerateComment();
 
             //act
             var dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
+            user = dataLayer.AddUser(user);
+            photo.UserId = user.Id;
+            comment.UserId = user.Id;
+            commentUpdate.UserId = user.Id;
+
+            photo = dataLayer.AddPhoto(photo);
+            comment.PhotoId = photo.Id;
+            commentUpdate.PhotoId = photo.Id;
+
             comment = dataLayer.AddComment(comment);
             commentUpdate.Id = comment.Id;
             commentUpdate = dataLayer.UpdateComment(commentUpdate);
@@ -155,10 +183,14 @@ namespace InstaKiller.Test
         public void ShouldAddPhoto()
         {
             //arrange
+            var user = GenerateUser();
             var photo = GeneratePhoto();
 
             //act
             var dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
+            user = dataLayer.AddUser(user);
+            photo.UserId = user.Id;
+
             photo = dataLayer.AddPhoto(photo);
 
             var resultPhoto = dataLayer.GetPhoto(photo.Id);
@@ -171,10 +203,14 @@ namespace InstaKiller.Test
         public void ShouldGetPhoto()
         {
             //arrange
+            var user = GenerateUser();
             var photo = GeneratePhoto();
 
             //act
             var dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
+            user = dataLayer.AddUser(user);
+            photo.UserId = user.Id;
+
             photo = dataLayer.AddPhoto(photo);
 
             var resPhoto = dataLayer.GetPhoto(photo.Id);
@@ -204,10 +240,14 @@ namespace InstaKiller.Test
         public void ShouldDeletePhoto()
         {
             //arrange
+            var user = GenerateUser();
             var photo = GeneratePhoto();
 
             //act
             var dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
+            user = dataLayer.AddUser(user);
+            photo.UserId = user.Id;
+
             photo = dataLayer.AddPhoto(photo);
             dataLayer.DeletePhoto(photo.Id);
 
@@ -221,10 +261,20 @@ namespace InstaKiller.Test
         public void ShouldAddComment()
         {
             //arrange
+            var user = GenerateUser();
+            var photo = GeneratePhoto();
             var comment = GenerateComment();
 
             //act
             var dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
+
+            user = dataLayer.AddUser(user);
+            comment.UserId = user.Id;
+            photo.UserId = user.Id;
+
+            photo = dataLayer.AddPhoto(photo);
+            comment.PhotoId = photo.Id;
+
             comment = dataLayer.AddComment(comment);
 
             var resultComment = dataLayer.GetComment(comment.Id);
@@ -237,10 +287,19 @@ namespace InstaKiller.Test
         public void ShouldDeleteComment()
         {
             //arrange
+            var user = GenerateUser();
+            var photo = GeneratePhoto();
             var comment = GenerateComment();
 
             //act
             var dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
+            user = dataLayer.AddUser(user);
+            photo.UserId = user.Id;
+            comment.UserId = user.Id;
+
+            photo = dataLayer.AddPhoto(photo);
+            comment.PhotoId = photo.Id;
+
             comment = dataLayer.AddComment(comment);
             dataLayer.DeleteComment(comment.Id);
 
@@ -254,10 +313,19 @@ namespace InstaKiller.Test
         public void ShouldGetComment()
         {
             //arrange
+            var user = GenerateUser();
+            var photo = GeneratePhoto();
             var comment = GenerateComment();
 
             //act
             var dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
+            user = dataLayer.AddUser(user);
+            photo.UserId = user.Id;
+            comment.UserId = user.Id;
+
+            photo = dataLayer.AddPhoto(photo);
+            comment.PhotoId = photo.Id;
+
             comment = dataLayer.AddComment(comment);
 
             var resComment = dataLayer.GetComment(comment.Id);
@@ -270,20 +338,15 @@ namespace InstaKiller.Test
         public void ShouldAddLike()
         {
             //arrange
+            var user = GenerateUser();
             var photo = GeneratePhoto();
-
-            var user = new Person
-            {
-                Name = Guid.NewGuid().ToString(),
-                LastName = Guid.NewGuid().ToString(),
-                FirstName = Guid.NewGuid().ToString(),
-                Email = Guid.NewGuid().ToString()
-            };
 
             //act
             var dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
-            photo = dataLayer.AddPhoto(photo);
             user = dataLayer.AddUser(user);
+            photo.UserId = user.Id;
+
+            photo = dataLayer.AddPhoto(photo);
 
             dataLayer.AddLike(photo, user);
             bool haveLike = dataLayer.HaveLike(photo, user);
@@ -297,13 +360,15 @@ namespace InstaKiller.Test
         {
             //arrange
             var photo = GeneratePhoto();
-
             var user = GenerateUser();
 
             //act
             var dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
-            photo = dataLayer.AddPhoto(photo);
             user = dataLayer.AddUser(user);
+            photo.UserId = user.Id;
+
+            photo = dataLayer.AddPhoto(photo);
+            
 
             dataLayer.AddLike(photo, user);
             dataLayer.DeleteLike(photo, user);
@@ -324,30 +389,48 @@ namespace InstaKiller.Test
 
             //act
             var dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
-            photo = dataLayer.AddPhoto(photo);
             user = dataLayer.AddUser(user);
             userAnother = dataLayer.AddUser(userAnother);
+            photo.UserId = user.Id;
+            photo = dataLayer.AddPhoto(photo);
 
             dataLayer.AddLike(photo, user);
             dataLayer.AddLike(photo, userAnother);
 
             photo.UsersThatLike = dataLayer.GetLikes(photo);
 
-            var resUser = photo.UsersThatLike[0];
+            var resAllLikes = true;
+            foreach (var usersLikes in photo.UsersThatLike)
+            {
+                if (usersLikes.Id != user.Id && usersLikes.Id != userAnother.Id)
+                {
+                    resAllLikes = false;
+                }
+            }
 
             //assert
-            Assert.AreEqual(resUser.Id, user.Id);
+            Assert.AreEqual(resAllLikes, true);
         }
 
         [TestMethod]
         public void ShouldAddHastag()
         {
             //arrange
+            var user = GenerateUser();
+            var photo = GeneratePhoto();
             var comment = GenerateComment();
             var hashtag = Guid.NewGuid().ToString();
 
             //act
             var dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
+            user = dataLayer.AddUser(user);
+            photo.UserId = user.Id;
+            comment.UserId = user.Id;
+
+            photo = dataLayer.AddPhoto(photo);
+            comment.PhotoId = photo.Id;
+
+            comment = dataLayer.AddComment(comment);
             comment = dataLayer.AddHashtag(comment, hashtag);
 
             var haveHashtag = dataLayer.HaveHashtag(comment, hashtag);
@@ -368,11 +451,21 @@ namespace InstaKiller.Test
         public void ShouldDeleteHashtag()
         {
             //arrange
+            var user = GenerateUser();
+            var photo = GeneratePhoto();
             var comment = GenerateComment();
             var hashtag = Guid.NewGuid().ToString();
 
             //act
             var dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
+            user = dataLayer.AddUser(user);
+            photo.UserId = user.Id;
+            comment.UserId = user.Id;
+
+            photo = dataLayer.AddPhoto(photo);
+            comment.PhotoId = photo.Id;
+
+            comment = dataLayer.AddComment(comment);
             comment = dataLayer.AddHashtag(comment, hashtag);
 
             dataLayer.DeleteHashtag(comment, hashtag);
@@ -431,23 +524,94 @@ namespace InstaKiller.Test
         }
 
         [TestMethod]
-        public void ShouldAddFriend()
+        public void ShouldGetSubscriber()
         {
             //arrange
             var user = GenerateUser();
-            var userFriend = GenerateUser();
+            var userSubscriber = GenerateUser();
 
             //act
             var dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
             user = dataLayer.AddUser(user);
-            userFriend = dataLayer.AddUser(userFriend);
+            userSubscriber = dataLayer.AddUser(userSubscriber);
 
-            dataLayer.AddSubscription(user, userFriend);
+            dataLayer.AddSubscription(userSubscriber, user);
 
-            bool areFriends = dataLayer.HaveSubscription(user, userFriend);
+            var resSubscribe = dataLayer.HaveSubscribe(user, userSubscriber);
+
+            //assert
+            Assert.AreEqual(resSubscribe, true);
+        }
+
+        [TestMethod]
+        public void ShouldGetSubscribers()
+        {
+            //arrange
+            var user = GenerateUser();
+            var userSubscriber = GenerateUser();
+            var userSubscriber2 = GenerateUser();
+
+            //act
+            var dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
+            user = dataLayer.AddUser(user);
+            userSubscriber = dataLayer.AddUser(userSubscriber);
+            userSubscriber2 = dataLayer.AddUser(userSubscriber2);
+
+            dataLayer.AddSubscription(userSubscriber, user);
+            dataLayer.AddSubscription(userSubscriber2, user);
+
+            user.Subscribers = dataLayer.GetSubscribers(user);
+
+            var allSubscribers = true;
+            foreach (var subscriber in user.Subscribers)
+            {
+                if (subscriber.Id != userSubscriber.Id && subscriber.Id != userSubscriber2.Id)
+                {
+                    allSubscribers = false;
+                }
+            }
+
+            //assert
+            Assert.AreEqual(allSubscribers, true);
+        } 
+
+        [TestMethod]
+        public void ShouldAddSubscription()
+        {
+            //arrange
+            var user = GenerateUser();
+            var userSubscriber = GenerateUser();
+
+            //act
+            var dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
+            user = dataLayer.AddUser(user);
+            userSubscriber = dataLayer.AddUser(userSubscriber);
+
+            dataLayer.AddSubscription(user, userSubscriber);
+
+            bool areFriends = dataLayer.HaveSubscription(user, userSubscriber);
 
             //assert
             Assert.AreEqual(areFriends, true);
+        }
+
+        [TestMethod]
+        public void ShouldGetSubscription()
+        {
+            //arrange
+            var user = GenerateUser();
+            var userSubscription = GenerateUser();
+
+            //act
+            var dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
+            user = dataLayer.AddUser(user);
+            userSubscription = dataLayer.AddUser(userSubscription);
+            dataLayer.AddSubscription(user, userSubscription);
+
+            var haveSubscription = dataLayer.HaveSubscription(user, userSubscription);
+
+            //assert
+            Assert.AreEqual(haveSubscription, true);
         }
 
         [TestMethod]
@@ -455,24 +619,25 @@ namespace InstaKiller.Test
         {
             //arrange
             var user = GenerateUser();
-            var userFriend = GenerateUser();
-            var userFriend2 = GenerateUser();
+            var userSubscription = GenerateUser();
+            var userSubscription2 = GenerateUser();
 
             //act
             var dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
-            user = dataLayer.AddUser(user);
-            userFriend = dataLayer.AddUser(userFriend);
-            userFriend2 = dataLayer.AddUser(userFriend2);
 
-            dataLayer.AddSubscription(user, userFriend);
-            dataLayer.AddSubscription(user, userFriend2);
+            user = dataLayer.AddUser(user);
+            userSubscription = dataLayer.AddUser(userSubscription);
+            userSubscription2 = dataLayer.AddUser(userSubscription2);
+
+            dataLayer.AddSubscription(user, userSubscription);
+            dataLayer.AddSubscription(user, userSubscription2);
 
             user.Subscriptions = dataLayer.GetSubscription(user);
             var trueSubscription = true;
 
-            foreach (var friend in user.Subscriptions)
+            foreach (var subscription in user.Subscriptions)
             {
-                if (!dataLayer.HaveSubscription(user, friend))
+                if (!dataLayer.HaveSubscription(user, subscription))
                 {
                     trueSubscription = false;
                 }
@@ -483,22 +648,64 @@ namespace InstaKiller.Test
         }
 
         [TestMethod]
-        public void ShouldDeleteFriend()
+        public void ShouldDeleteSubscription()
         {
             //arrange
             var user = GenerateUser();
-            var userFriend = GenerateUser();
+            var userSubscription = GenerateUser();
 
             //act
             var dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
             user = dataLayer.AddUser(user);
-            userFriend = dataLayer.AddUser(userFriend);
+            userSubscription = dataLayer.AddUser(userSubscription);
 
-            dataLayer.DeleteSubscription(user, userFriend);
-            var areFriends = dataLayer.HaveSubscription(user, userFriend);
+            dataLayer.AddSubscription(user, userSubscription);
+
+            dataLayer.DeleteSubscription(user, userSubscription);
+            var areFriends = dataLayer.HaveSubscription(user, userSubscription);
 
             //assert
             Assert.AreEqual(areFriends, false);
         }
+
+        [TestMethod]
+        public void ShouldAddSession()
+        {
+            //arrange
+            var user = GenerateUser();
+            var session = GenerateSession();
+
+            //act
+            var dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
+            user = dataLayer.AddUser(user);
+            session.UserId = user.Id;
+
+            session = dataLayer.AddSession(session);
+
+            var resSession = dataLayer.GetSession(session.Id);
+
+            //assert
+            Assert.AreEqual(resSession.Id, session.Id);
+        }
+
+        [TestMethod]
+        public void ShouldGetSession()
+        {
+            //arrange
+            var user = GenerateUser();
+            var session = GenerateSession();
+
+            //act
+            var dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
+            user = dataLayer.AddUser(user);
+            session.UserId = user.Id;
+
+            session = dataLayer.AddSession(session);
+
+            var resSession = dataLayer.GetSession(session.Id);
+    
+            //assert
+            Assert.AreEqual(resSession.Id, session.Id);
+        } 
     }
 }
