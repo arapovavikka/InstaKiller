@@ -1,16 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data.Odbc;
 using InstaKiller.Model;
 using System.Data.SqlClient;
-using System.Net.Configuration;
-using System.Xml.Linq;
+using NLog;
+
 
 namespace InstaKiller.DataLayer.Sql
 {
     public class DataLayer:IDataLayer
     {
         private readonly string _connectionSql;
+        private readonly Logger _log = LogManager.GetCurrentClassLogger();
         
         public DataLayer(string connectionSql)
         {
@@ -19,100 +19,286 @@ namespace InstaKiller.DataLayer.Sql
             _connectionSql = connectionSql;
         }
 
-        public Comment AddComment(Comment comment)
+        public bool AddComment(Comment comment)
         {
-            using (var connection = new SqlConnection(_connectionSql))
+            _log.Info("Adding comment...");
+            if (HaveUser(comment.UserId) && HavePhoto(comment.PhotoId))
             {
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                using (var connection = new SqlConnection(_connectionSql))
                 {
-                    comment.Id = Guid.NewGuid();
-                    comment.DateTime = DateTime.Now;
+                    connection.Open();
 
-                    command.CommandText = @"insert into comment(id, photo_id, user_id, text, date_time) 
+                    using (var command = connection.CreateCommand())
+                    {
+                        do
+                        {
+                            comment.Id = Guid.NewGuid();
+                        } while (HaveComment(comment.Id));
+                        comment.DateTime = DateTime.Now;
+                        _log.Info("Unique ID generated:{0}", comment.Id);
+
+                        command.CommandText = @"insert into comment(id, photo_id, user_id, text, date_time) 
                         values (@id, @photo_id, @user_id, @text, @date_time)";
-                    command.Parameters.AddWithValue("@id", comment.Id);
-                    command.Parameters.AddWithValue("@photo_id", comment.PhotoId);
-                    command.Parameters.AddWithValue("@user_id", comment.UserId);
-                    command.Parameters.AddWithValue("@text", comment.Text);
-                    command.Parameters.AddWithValue("@date_time", comment.DateTime);
+                        command.Parameters.AddWithValue("@id", comment.Id);
+                        command.Parameters.AddWithValue("@photo_id", comment.PhotoId);
+                        command.Parameters.AddWithValue("@user_id", comment.UserId);
+                        command.Parameters.AddWithValue("@text", comment.Text);
+                        command.Parameters.AddWithValue("@date_time", comment.DateTime);
+                        command.ExecuteNonQuery();
 
-                    command.ExecuteNonQuery();
-                    return comment;
+                        _log.Info("Comment added.");
+                        LogComment(comment.Id);
+                        LogManager.Flush();
+
+                        return true;
+                    }
                 }
             }
+            //can't find person that want add comment
+            // or can't find photo 
+            _log.Debug("Comment wasn't added");
+            _log.Error("User id: {0}\n Photo id: {1} \n Comment with id = {2} wasn't added", comment.UserId, comment.PhotoId, comment.Id);
+            LogUser(comment.UserId);
+            LogPhoto(comment.PhotoId);
+            LogManager.Flush();
+
+            return false;
         }
 
-        public Photo AddPhoto(Photo photo)
+        public bool AddPhoto(Photo photo)
         {
-            using (var connection = new SqlConnection(_connectionSql))
+            _log.Info("Adding photo...");
+            if (HaveUser(photo.UserId))
             {
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                using (var connection = new SqlConnection(_connectionSql))
                 {
-                    photo.Id = Guid.NewGuid();
-                    photo.TimeDate = DateTime.Now;
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        do
+                        {
+                            photo.Id = Guid.NewGuid();
+                        } while (HavePhoto(photo.Id));
+                        photo.TimeDate = DateTime.Now;
 
-                    command.CommandText = @"insert into photo(id, user_id, date_time, image_url) 
+                        command.CommandText = @"insert into photo(id, user_id, date_time, image_url) 
                         values (@id, @user_id, @date_time, @image_url)";
-                    command.Parameters.AddWithValue("@id", photo.Id);
-                    command.Parameters.AddWithValue("@user_id", photo.UserId);
-                    command.Parameters.AddWithValue("@date_time", photo.TimeDate);
-                    command.Parameters.AddWithValue("@image_url", photo.ImageUrl);
+                        command.Parameters.AddWithValue("@id", photo.Id);
+                        command.Parameters.AddWithValue("@user_id", photo.UserId);
+                        command.Parameters.AddWithValue("@date_time", photo.TimeDate);
+                        command.Parameters.AddWithValue("@image_url", photo.ImageUrl);
+                        command.ExecuteNonQuery();
 
-                    command.ExecuteNonQuery();
-                    return photo;
+                        _log.Info("Photo added with id: {0}", photo.Id);
+                        LogPhoto(photo.Id);
+                        LogManager.Flush();
+
+                        return true;
+                    }
                 }
             }
+            //can't find user that want post photo
+            _log.Debug("Photo wasn't added. \n User with id = {0} doesn't exist.", photo.UserId);
+            _log.Error("User id = {0}\n Photo with id = {1} wasn't added.", photo.UserId, photo.Id);
+            LogUser(photo.UserId);
+            LogPhoto(photo.Id);
+            LogManager.Flush();
+
+            return false;
         }
 
-        public Person UpdateUser(Person userUpdate)
+        public bool HaveUser(Guid userId)
         {
-            using (var connection = new SqlConnection(_connectionSql))
+            _log.Info("Checking existence of user...");
+            if (userId != Guid.Empty)
             {
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                using (var connection = new SqlConnection(_connectionSql))
                 {
-                    command.CommandText = @"update person set last_name = @last_name, first_name = @first_name,
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText =
+                            "select last_name, user_name, first_name, email from person where @id = id";
+                        command.Parameters.AddWithValue(@"id", userId);
+                        using (var reader = command.ExecuteReader())
+                        {
+                            reader.Read();
+                            _log.Info(reader.HasRows ? "User exists." : "User doesn't exist.");
+                            LogManager.Flush();
+
+                            return reader.HasRows;
+                        }
+                    }
+                }
+            }
+            //wrong user id
+            _log.Warn("User doesn't exist.");
+            LogManager.Flush();
+
+            return false;
+        }
+
+        public bool HaveComment(Guid commentId)
+        {
+            _log.Info("Checking existence of comment...");
+            if (commentId != Guid.Empty)
+            {
+                using (var connecton = new SqlConnection(_connectionSql))
+                {
+                    connecton.Open();
+                    using (var command = connecton.CreateCommand())
+                    {
+                        command.CommandText =
+                            "select text, user_id, photo_id, date_time from comment where @id = id";
+                        command.Parameters.AddWithValue(@"id", commentId);
+                        using (var reader = command.ExecuteReader())
+                        { 
+                            reader.Read();
+                            _log.Info(reader.HasRows ? "Comment exists." : "Comment doesn't exist.");
+                            LogManager.Flush();
+
+                            return reader.HasRows;
+                        }
+                    }
+                }
+            }
+            //wrong id of comment
+            _log.Warn("Comment doesn't exist.");
+            LogManager.Flush();
+
+            return false;
+        }
+
+        public bool UpdateUser(Guid userId, Person userUpdate)
+        {
+            _log.Info("Updating user with id: {0}", userId);
+            if (userId != Guid.Empty)
+            {
+                using (var connection = new SqlConnection(_connectionSql))
+                {
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        if (HaveUser(userId))
+                        {
+                            LogUser(userId);
+
+                            command.CommandText = @"update person set last_name = @last_name, first_name = @first_name,
                         email = @email, user_name = @user_name where id = @id";
-                    command.Parameters.AddWithValue(@"id", userUpdate.Id);
-                    command.Parameters.AddWithValue(@"user_name", userUpdate.Name);
-                    command.Parameters.AddWithValue(@"last_name", userUpdate.LastName);
-                    command.Parameters.AddWithValue(@"first_name", userUpdate.FirstName);
-                    command.Parameters.AddWithValue(@"email", userUpdate.Email);
+                            command.Parameters.AddWithValue(@"id", userId);
+                            command.Parameters.AddWithValue(@"user_name", userUpdate.Name);
+                            command.Parameters.AddWithValue(@"last_name", userUpdate.LastName);
+                            command.Parameters.AddWithValue(@"first_name", userUpdate.FirstName);
+                            command.Parameters.AddWithValue(@"email", userUpdate.Email);
+                            command.ExecuteNonQuery();
 
-                    command.ExecuteNonQuery();
-                    return userUpdate;
+                            _log.Info("User updated.");
+                            LogUser(userId);
+                            LogManager.Flush();
+
+                            return true;
+                        }
+                        _log.Debug("User wasn't updated.");
+                        _log.Error("User wasn't updated at {0}. User id = {1}", DateTime.Now, userId);
+                        LogManager.Flush();
+                            
+                        return false;
+                    }
                 }
             }
+            //empty current user id
+            _log.Warn("User doesn't exist.");
+            LogManager.Flush();
+
+            return false;
         }
 
-        public Photo UpdatePhoto(Photo photoUpdate)
+        public bool UpdatePhoto(Guid photoId, Photo photoUpdate)
         {
-            using (var connection = new SqlConnection(_connectionSql))
+            _log.Info("Updating photo with id: {0}", photoId);
+            if (photoId != Guid.Empty)
             {
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                using (var connection = new SqlConnection(_connectionSql))
                 {
-                    command.CommandText = @"update photo set
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        if (HavePhoto(photoId))
+                        {
+                            LogPhoto(photoId);
+
+                            command.CommandText = @"update photo set
                         image_url = @image_url where id = @id";
-                    command.Parameters.AddWithValue(@"id", photoUpdate.Id);
-                    command.Parameters.AddWithValue(@"image_url", photoUpdate.ImageUrl);
+                            command.Parameters.AddWithValue(@"id", photoId);
+                            command.Parameters.AddWithValue(@"image_url", photoUpdate.ImageUrl);
+                            command.ExecuteNonQuery();
 
-                    command.ExecuteNonQuery();
-                    return photoUpdate;
+                            _log.Info("Photo updated.");
+                            LogPhoto(photoId);
+                            LogManager.Flush();
+
+                            return true;
+                        }
+                        _log.Debug("Photo doesn't exist.");
+                        _log.Error("Photo with id = {0} doesn't exist.", photoId);
+                        LogManager.Flush();
+
+                        return false;
+                    }
                 }
             }
+            //empty photo id
+            _log.Debug("Photo doesn't exist.");
+            LogManager.Flush();
+
+            return false;
         }
 
-        public Person AddUser(Person user)
+        public bool HavePhoto(Guid photoId)
         {
+            _log.Info("Checking existence of photo...");
+            if (photoId != Guid.Empty)
+            {
+                using (var connection = new SqlConnection(_connectionSql))
+                {
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText = "select user_id, image_url, date_time from photo where @id = id";
+                        command.Parameters.AddWithValue(@"id", photoId);
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            reader.Read();
+                            _log.Info(reader.HasRows ? "Photo exists." : "Photo doesn't exist.");
+                            LogManager.Flush();
+                            return reader.HasRows;
+                        }
+                    }
+                   
+                }
+            }
+            //can't find photo
+            _log.Debug("Photo doesn't exist.");
+            LogManager.Flush();
+
+            return false;
+        }
+
+        public bool AddUser(Person user)
+        {
+            _log.Info("Adding user...");
             using (var connection = new SqlConnection(_connectionSql))
             {
                 connection.Open();
                 using (var command = connection.CreateCommand())
                 {
-                    user.Id = Guid.NewGuid();
+                    do
+                    {
+                        user.Id = Guid.NewGuid();
+                    } while (HaveUser(user.Id));
+
+                    _log.Info("Unique id generated: {0}", user.Id);
 
                     command.CommandText = @"insert into person(id, user_name, last_name, first_name, email) 
                         values (@id, @user_name, @last_name, @first_name, @email)";
@@ -121,31 +307,59 @@ namespace InstaKiller.DataLayer.Sql
                     command.Parameters.AddWithValue("@first_name", user.FirstName);
                     command.Parameters.AddWithValue("@last_name", user.LastName);
                     command.Parameters.AddWithValue("@email", user.Email);
-
                     command.ExecuteNonQuery();
-                    return user;
+
+                    _log.Info("User added.");
+                    LogUser(user.Id);
+                    LogManager.Flush();
+
+                    return true;
                 }
             }
         }
 
-        public Comment UpdateComment(Comment commentUpdate)
+        public bool UpdateComment(Guid commentId, Comment commentUpdate)
         {
-            using (var connection = new SqlConnection(_connectionSql))
+            _log.Info("Updating comment...");
+            if (commentId != Guid.Empty)
             {
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                using (var connection = new SqlConnection(_connectionSql))
                 {
-                    command.CommandText = @"update comment set user_id = @user_id,
-                        photo_id = @photo_id, text = @text where id = @id";
-                    command.Parameters.AddWithValue(@"id", commentUpdate.Id);
-                    command.Parameters.AddWithValue(@"user_id", commentUpdate.UserId);
-                    command.Parameters.AddWithValue(@"photo_id", commentUpdate.PhotoId);
-                    command.Parameters.AddWithValue(@"text", commentUpdate.Text);
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        if (HaveComment(commentId))
+                        {
+                            LogComment(commentId);
 
-                    command.ExecuteNonQuery();
-                    return commentUpdate;
+                            command.CommandText = @"update comment set user_id = @user_id,
+                        photo_id = @photo_id, text = @text where id = @id";
+                            command.Parameters.AddWithValue(@"id", commentId);
+                            //TODO: check that while updating user id can't be changed
+                            command.Parameters.AddWithValue(@"user_id", commentUpdate.UserId);
+                            command.Parameters.AddWithValue(@"photo_id", commentUpdate.PhotoId);
+                            command.Parameters.AddWithValue(@"text", commentUpdate.Text);
+                            command.ExecuteNonQuery();
+
+                            _log.Info("Comment updated.");
+                            LogComment(commentId);
+                            LogManager.Flush();
+
+                            return true;
+                        }
+                        _log.Debug("Comment doesn't exist");
+                        _log.Error("Comment with id = {0} doesn't exist", commentId);
+                        LogManager.Flush();
+
+                        return false;
+                    }
                 }
             }
+            //wrong comment id
+            _log.Debug("Comment doesn't exist.");
+            LogManager.Flush();
+
+            return false;
         }
 
         public List<string> GetAllHashtags(Comment comment)
@@ -155,141 +369,259 @@ namespace InstaKiller.DataLayer.Sql
 
         public Comment GetComment(Guid commentId)
         {
-            using (var connection = new SqlConnection(_connectionSql))
+            _log.Info("Getting comment...");
+            if (commentId != Guid.Empty)
             {
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                using (var connection = new SqlConnection(_connectionSql))
                 {
-                    command.CommandText = @"select id, text, user_id, photo_id, date_time from comment where @id = id";
-                    command.Parameters.AddWithValue("@id", commentId);
-                    using (var reader = command.ExecuteReader())
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
                     {
-                        reader.Read();
-                        if (reader.HasRows)
-                            return new Comment
+                        command.CommandText =
+                            @"select id, text, user_id, photo_id, date_time from comment where @id = id";
+                        command.Parameters.AddWithValue("@id", commentId);
+                        using (var reader = command.ExecuteReader())
+                        {
+                            reader.Read();
+                            if (reader.HasRows)
                             {
-                                Id = reader.GetGuid(reader.GetOrdinal("id")),
-                                Text = reader.GetString(reader.GetOrdinal("text")),
-                                UserId = reader.GetGuid(reader.GetOrdinal("user_id")),
-                                PhotoId = reader.GetGuid(reader.GetOrdinal("photo_id")),
-                                DateTime = reader.GetDateTime(reader.GetOrdinal("date_time"))
-                            };
+                                _log.Info("Comment with id = {0} was found.", commentId);
+                                LogManager.Flush();
 
-                        //if don't find comment in db
-                        return new Comment();
+                                return new Comment
+                                {
+                                    Id = reader.GetGuid(reader.GetOrdinal("id")),
+                                    Text = reader.GetString(reader.GetOrdinal("text")),
+                                    UserId = reader.GetGuid(reader.GetOrdinal("user_id")),
+                                    PhotoId = reader.GetGuid(reader.GetOrdinal("photo_id")),
+                                    DateTime = reader.GetDateTime(reader.GetOrdinal("date_time"))
+                                };
+                            }
+
+                            //if don't find comment in db
+                            _log.Debug("Comment with id = {0} wasn't found.", commentId);
+                            _log.Error("Comment with id = {0} wasn't found.", commentId);
+                            LogManager.Flush();
+
+                            return new Comment();
+                        }
                     }
                 }
             }
+            _log.Debug("Comment doesn't exist.");
+            LogManager.Flush();
+
+            return new Comment();
         }
 
         public void DeleteUser(Guid userId)
         {
-            using (var connection = new SqlConnection(_connectionSql))
+            _log.Info("Deleting user...");
+            if (userId != Guid.Empty)
             {
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                using (var connection = new SqlConnection(_connectionSql))
                 {
-                    command.CommandText = @"delete person where @id = id";
-                    command.Parameters.AddWithValue(@"id", userId);
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        if (HaveUser(userId))
+                        {
+                            LogUser(userId);
 
-                    command.ExecuteNonQuery();
+                            command.CommandText = @"delete person where @id = id";
+                            command.Parameters.AddWithValue(@"id", userId);
+                            command.ExecuteNonQuery();
+                            _log.Info(!HaveUser(userId)?("User with id = " + userId + " was deleted.")
+                                : "User with id = " + userId + " wasn't deleted.");
+                        }
+                        else
+                        {
+                            _log.Info("User with id = {0} doesn't exist.", userId);
+                        }
+                        LogManager.Flush();
+                    }
                 }
+            }
+            else
+            {
+                _log.Info("User doesn't exist.");
+                LogManager.Flush();
             }
         }
 
-        //TODO: change return type for all delete methods.
         public void DeleteComment(Guid commentId)
         {
-            using (var connection = new SqlConnection(_connectionSql))
-            {
-                connection.Open();
-                using (var command = connection.CreateCommand())
-                {
-                    command.CommandText = @"delete comment where @id = id";
-                    command.Parameters.AddWithValue(@"id", commentId);
+            _log.Info("Deleting comment...");
+            LogComment(commentId);
 
-                    command.ExecuteNonQuery();
-                    //return command.ExecuteNonQuery();
+            if (commentId != Guid.Empty)
+            {
+                using (var connection = new SqlConnection(_connectionSql))
+                {
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        if (HaveComment(commentId))
+                        {
+                            LogComment(commentId);
+
+                            command.CommandText = @"delete comment where @id = id";
+                            command.Parameters.AddWithValue(@"id", commentId);
+                            command.ExecuteNonQuery();
+
+                            _log.Info(!HaveComment(commentId) ? "Comment with id = " + commentId + " was deleted." 
+                                : "Comment with id = " + commentId + " wasn't deleted.");
+                        }
+                        else
+                        {
+                            _log.Info("Comment with id = {0} doesn't exist.", commentId);
+                        }
+                        LogManager.Flush();
+                    }
                 }
+            }
+            else
+            {
+                //empty id
+                _log.Info("Comment doesn't exist.");
+                LogManager.Flush();
             }
         }
 
         public Photo GetPhoto(Guid photoId)
         {
-            using (var connection = new SqlConnection(_connectionSql))
+            _log.Info("Getting photo from datebase...");
+            if (photoId != Guid.Empty)
             {
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                using (var connection = new SqlConnection(_connectionSql))
                 {
-                    command.CommandText = @"select id, user_id, image_url, date_time from photo
-                        where @id = id";
-                    command.Parameters.AddWithValue(@"id", photoId);
-
-                    using (var reader = command.ExecuteReader())
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
                     {
-                        reader.Read();
-                        if (reader.HasRows)
-                            return new Photo
-                            {
-                                //param of Get - ordinal number of coloumn in table
-                                Id = reader.GetGuid(reader.GetOrdinal(@"id")),
-                                UserId = reader.GetGuid(reader.GetOrdinal(@"user_id")),
-                                ImageUrl = reader.GetString(reader.GetOrdinal(@"image_url")),
-                                TimeDate = reader.GetDateTime(reader.GetOrdinal(@"date_time"))
-                            };
+                        command.CommandText = @"select id, user_id, image_url, date_time from photo
+                        where @id = id";
+                        command.Parameters.AddWithValue(@"id", photoId);
 
-                        //if don't find photo in db
-                        return new Photo();
+                        using (var reader = command.ExecuteReader())
+                        {
+                            reader.Read();
+                            if (reader.HasRows)
+                            {
+                                _log.Info("Photo with id = {0} was found.", photoId);
+                                LogManager.Flush();
+
+                                return new Photo
+                                {
+                                    //param of Get - ordinal number of coloumn in table
+                                    Id = reader.GetGuid(reader.GetOrdinal(@"id")),
+                                    UserId = reader.GetGuid(reader.GetOrdinal(@"user_id")),
+                                    ImageUrl = reader.GetString(reader.GetOrdinal(@"image_url")),
+                                    TimeDate = reader.GetDateTime(reader.GetOrdinal(@"date_time"))
+                                };
+                            }
+
+                            //if don't find photo in db
+                            _log.Debug("Photo with id = {0} wasn't found.", photoId);
+                            _log.Error("Photo with id = {0} wasn't found.", photoId);
+                            LogManager.Flush();
+
+                            return new Photo();
+                        }
                     }
                 }
             }
+            //empty id
+            _log.Debug("Photo doesn't exist.");
+            LogManager.Flush();
+
+            return new Photo();
         }
 
         public Person GetUser(Guid userId)
         {
-            using (var connection = new SqlConnection(_connectionSql))
+            _log.Info("Getting user from datebase...");
+            if (userId != Guid.Empty)
             {
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                using (var connection = new SqlConnection(_connectionSql))
                 {
-                    command.CommandText = @"select id, user_name, last_name, first_name, email from person
-                        where @id = id";
-                    command.Parameters.AddWithValue(@"id", userId);
-
-                    using (var reader = command.ExecuteReader())
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
                     {
-                        reader.Read();
+                        command.CommandText = @"select id, user_name, last_name, first_name, email from person
+                        where @id = id";
+                        command.Parameters.AddWithValue(@"id", userId);
 
-                        if (reader.HasRows)
-                            return new Person
+                        using (var reader = command.ExecuteReader())
+                        {
+                            reader.Read();
+
+                            if (reader.HasRows)
                             {
-                                //param of Get - ordinal number of coloumn in table
-                                Id = reader.GetGuid(reader.GetOrdinal(@"id")),
-                                LastName = reader.GetString(reader.GetOrdinal(@"last_name")),
-                                FirstName = reader.GetString(reader.GetOrdinal(@"first_name")),
-                                Name = reader.GetString(reader.GetOrdinal(@"user_name")),
-                                Email = reader.GetString(reader.GetOrdinal(@"email"))
-                            };
+                                _log.Info("User with id = {0} was found.", userId);
+                                LogManager.Flush();
 
-                        //if don't find user in db
-                        return new Person(); 
+                                return new Person
+                                {
+                                    //param of Get - ordinal number of coloumn in table
+                                    Id = reader.GetGuid(reader.GetOrdinal(@"id")),
+                                    LastName = reader.GetString(reader.GetOrdinal(@"last_name")),
+                                    FirstName = reader.GetString(reader.GetOrdinal(@"first_name")),
+                                    Name = reader.GetString(reader.GetOrdinal(@"user_name")),
+                                    Email = reader.GetString(reader.GetOrdinal(@"email"))
+                                };
+                            }
+
+                            //if don't find user in db
+                            _log.Info("User with id = {0} wasn't found.", userId);
+                            _log.Error("User with id = {0} wasn't found.", userId);
+                            LogManager.Flush();
+
+                            return new Person();
+                        }
                     }
                 }
             }
+            _log.Info("User doesn't exist.");
+            LogManager.Flush();
+
+            return new Person();
         }
 
         public void DeletePhoto(Guid photoId)
         {
-            using (var connection = new SqlConnection(_connectionSql))
+            _log.Info("Deleting photo...");
+            if (photoId != Guid.Empty)
             {
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                using (var connection = new SqlConnection(_connectionSql))
                 {
-                    command.CommandText = @"delete photo where @id = id";
-                    command.Parameters.AddWithValue(@"id", photoId);
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        if (HavePhoto(photoId))
+                        {
+                            LogPhoto(photoId);
 
-                    command.ExecuteNonQuery();
+                            command.CommandText = @"delete photo where @id = id";
+                            command.Parameters.AddWithValue(@"id", photoId);
+                            command.ExecuteNonQuery();
+
+                            _log.Info(!HavePhoto(photoId)
+                                ? "Photo with id = " + photoId + " was deleted."
+                                : "Photo with id = " + photoId + " wasn't deleted.");
+                        }
+                        else
+                        {
+                            _log.Info("Photo with id = {0} doesn't exist.", photoId);
+                        }
+                        LogManager.Flush();
+                    }
                 }
+            }
+            else
+            {
+                //wrong id
+                _log.Info("Photo doesn't exist.");
+                LogManager.Flush();
             }
         }
 
@@ -297,284 +629,495 @@ namespace InstaKiller.DataLayer.Sql
         //store subscription that have user (for ex he has subscription on userSubscription)
         public void AddSubscription(Person user, Person userSubscription)
         {
-            using (var connection = new SqlConnection(_connectionSql))
+            _log.Info("Adding subscription...");
+
+            if (HaveUser(user.Id))
             {
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                if (HaveUser(userSubscription.Id))
                 {
-                    var id = Guid.NewGuid();
-
-                    command.CommandText = @"insert into subscription(id, user_id, user_subscription_id) values(@id, @user_id,
-                        @user_subscription_id)";
-                    command.Parameters.AddWithValue(@"id", id);
-                    command.Parameters.AddWithValue(@"user_id", user.Id);
-                    command.Parameters.AddWithValue(@"user_subscription_id", userSubscription.Id);
-
-                    command.ExecuteNonQuery();
-                    user.Subscriptions.Add(userSubscription);
-                }
-            }
-        }
-
-        public bool HaveSubscription(Person user, Person userSubscripton)
-        {
-            using (var connection = new SqlConnection(_connectionSql))
-            {
-                connection.Open();
-                using (var command = connection.CreateCommand())
-                {
-                    command.CommandText =
-                        @"select id from subscription where @user_id = user_id and @user_subscription_id = user_subscription_id";
-                    command.Parameters.AddWithValue(@"user_id", user.Id);
-                    command.Parameters.AddWithValue(@"user_subscription_id", userSubscripton.Id);
-
-                    using (var reader = command.ExecuteReader())
+                    using (var connection = new SqlConnection(_connectionSql))
                     {
-                        reader.Read();
-                        return reader.HasRows;
+                        connection.Open();
+                        using (var command = connection.CreateCommand())
+                        {
+                            if (!HaveSubscription(user, userSubscription))
+                            {
+                                var id = Guid.NewGuid();
+
+                                _log.Info("User with id = {0}", user.Id);
+                                HaveUser(user.Id);
+                                _log.Info("User subscriber with id = {0}", userSubscription.Id);
+                                HaveUser(userSubscription.Id);
+
+                                command.CommandText =
+                                    @"insert into subscription(id, user_id, user_subscription_id) values(@id, @user_id,
+                        @user_subscription_id)";
+                                command.Parameters.AddWithValue(@"id", id);
+                                command.Parameters.AddWithValue(@"user_id", user.Id);
+                                command.Parameters.AddWithValue(@"user_subscription_id", userSubscription.Id);
+                                command.ExecuteNonQuery();
+                                user.Subscriptions.Add(userSubscription);
+
+                                _log.Info("User with id = {0} subscribed on user with id = {1}.", userSubscription.Id,
+                                    user.Id);
+                            }
+                            else
+                            {
+                                //already have such subscriptions
+                                _log.Info("User with id = {0} already have subscribed on user with id = {1}.",
+                                    userSubscription.Id, user.Id);
+                            }
+                        }
                     }
                 }
+                else
+                {
+                    _log.Warn("User subscriber with id = {0} doesn't exist.", userSubscription.Id);
+                }
             }
+            else
+            {
+                _log.Warn("User with id = {0} doesn't exist.", user.Id);
+            }
+            LogManager.Flush();
+        }
+
+        public bool HaveSubscription(Person user, Person userSubscription)
+        {
+            _log.Info("Checking subscription...");
+            if (HaveUser(user.Id))
+            {
+                if (HaveUser(userSubscription.Id))
+                {
+                    using (var connection = new SqlConnection(_connectionSql))
+                    {
+                        connection.Open();
+                        using (var command = connection.CreateCommand())
+                        {
+                            _log.Info("User with id = {0}", user.Id);
+                            HaveUser(user.Id);                         
+                            _log.Info("User subscriber with id = {0}", userSubscription.Id);
+                            HaveUser(userSubscription.Id);
+
+                            command.CommandText =
+                                @"select id from subscription where @user_id = user_id and @user_subscription_id = user_subscription_id";
+                            command.Parameters.AddWithValue(@"user_id", user.Id);
+                            command.Parameters.AddWithValue(@"user_subscription_id", userSubscription.Id);
+
+                            using (var reader = command.ExecuteReader())
+                            {
+                                reader.Read();
+                                _log.Info(reader.HasRows?"Subscription exists.":"Subscription doesn't exist.");
+                                LogManager.Flush();
+
+                                return reader.HasRows;
+                            }
+                        }
+                    }
+                }
+                _log.Warn("User subscriber with id = {0} doesn't exist.", userSubscription.Id);
+                LogManager.Flush();
+
+                return false;
+            }
+            _log.Warn("User with id = {0} doesn't exist.", user.Id);
+            LogManager.Flush();
+
+            return false;
         }
 
         public bool HaveSubscriber(Person user, Person userSubscription)
         {
-            using (var connectiion = new SqlConnection(_connectionSql))
+            _log.Info("Checking subscriber...");
+            if (HaveUser(user.Id))
             {
-                connectiion.Open();
-                using (var command = connectiion.CreateCommand())
+                if (HaveUser(userSubscription.Id))
                 {
-                    command.CommandText = "select id from realation where @user_subscribe_id = user_subscribe_id and @user_id = user_id";
-                    command.Parameters.AddWithValue(@"user_id", user.Id);
-                    command.Parameters.AddWithValue(@"user_subscribe_id", userSubscription.Id);
-
-                    using (var reader = command.ExecuteReader())
+                    using (var connection = new SqlConnection(_connectionSql))
                     {
-                        reader.Read();
-                        return reader.HasRows;
+                        connection.Open();
+                        using (var command = connection.CreateCommand())
+                        {
+                            _log.Info("User with id = {0}", user.Id);
+                            HaveUser(user.Id);
+                            _log.Info("User subscriber with id = {0}", userSubscription.Id);
+                            HaveUser(userSubscription.Id);
+
+                            command.CommandText =
+                                "select id from realation where @user_subscribe_id = user_subscribe_id and @user_id = user_id";
+                            command.Parameters.AddWithValue(@"user_id", user.Id);
+                            command.Parameters.AddWithValue(@"user_subscribe_id", userSubscription.Id);
+
+                            using (var reader = command.ExecuteReader())
+                            {
+                                reader.Read();
+                                _log.Info(reader.HasRows ? "User has subscriber." : "User doesn't have subsciber.");
+                                LogManager.Flush();
+
+                                return reader.HasRows;
+                            }
+                        }
                     }
                 }
+                _log.Warn("User subscriber with id = {0} doesn't exist.", userSubscription.Id);
+                LogManager.Flush();
+
+                return false;
             }
+            _log.Debug("User with id = {0} doesn't exist.", user.Id);
+            LogManager.Flush();
+
+            return false;
         }
 
         public List<Person> GetSubscription(Person user)
         {
+            _log.Info("Getting all user subscribers...");
             List<Person> personsSubscription = new List<Person>();
-            using (var connection = new SqlConnection(_connectionSql))
+            if (HaveUser(user.Id))
             {
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                using (var connection = new SqlConnection(_connectionSql))
                 {
-                    command.CommandText = @"select * from subscription where @user_id = user_id";
-                    command.Parameters.AddWithValue(@"user_id", user.Id);
-
-                    using (var reader = command.ExecuteReader())
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
                     {
-                        while (reader.Read())
+                        LogUser(user.Id);
+
+                        command.CommandText = @"select * from subscription where @user_id = user_id";
+                        command.Parameters.AddWithValue(@"user_id", user.Id);
+
+                        using (var reader = command.ExecuteReader())
                         {
-                            var userSubscription = new Person
+                            while (reader.Read())
                             {
-                                Id = reader.GetGuid(reader.GetOrdinal(@"user_subscription_id"))
-                            };
-                            userSubscription = GetUser(userSubscription.Id);
-                            personsSubscription.Add(userSubscription);
+                                _log.Info("Information about subscribers.");
+                                var userSubscription = new Person
+                                {
+                                    Id = reader.GetGuid(reader.GetOrdinal(@"user_subscription_id"))
+
+                                };
+                                userSubscription = GetUser(userSubscription.Id);
+                                personsSubscription.Add(userSubscription);
+
+                                LogUser(userSubscription.Id);
+                            }
+                            _log.Info("Got all subscribers.");
                         }
                     }
                 }
             }
+            else
+            {
+                //don't have user in db
+                _log.Warn("User with id = {0} doesn't exist.", user.Id);
+            }
+            LogManager.Flush();
             return personsSubscription;
         }
 
-        //TODO:change Person to Guid
         public void DeleteSubscription(Person user, Person userSubscription)
         {
-            using (var connection = new SqlConnection(_connectionSql))
+            _log.Info("Deleting subscriber...");
+            if (HaveUser(user.Id))
             {
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                if (HaveUser(userSubscription.Id))
                 {
-                    command.CommandText = @"delete subscription where @user_id = user_id and @user_subscription_id = user_subscription_id";
-                    command.Parameters.AddWithValue(@"user_id", user.Id);
-                    command.Parameters.AddWithValue(@"user_subscription_id", userSubscription.Id);
+                    using (var connection = new SqlConnection(_connectionSql))
+                    {
+                        connection.Open();
+                        using (var command = connection.CreateCommand())
+                        {
+                            _log.Info("User with id = {0}", user.Id);
+                            HaveUser(user.Id);
+                            _log.Info("User subscriber with id = {0}", userSubscription.Id);
+                            HaveUser(userSubscription.Id);
 
-                    command.ExecuteNonQuery();
+                            if (HaveSubscription(user, userSubscription))
+                            {
+                                command.CommandText =
+                                    @"delete subscription where @user_id = user_id and @user_subscription_id = user_subscription_id";
+                                command.Parameters.AddWithValue(@"user_id", user.Id);
+                                command.Parameters.AddWithValue(@"user_subscription_id", userSubscription.Id);
+
+                                command.ExecuteNonQuery();
+                                _log.Info(HaveSubscription(user, userSubscription) ? "Subscription wasn't removed" : "Subscription was removed.");
+                            }
+                            else
+                            {
+                                _log.Info("Subscription doesn't exist.");
+                            }
+                        }
+                    }
                 }
+                _log.Warn("User subscriber with id = {0} doesn't exist.", userSubscription.Id);
             }
+            _log.Warn("User with id = {0} doesn't exist.", user.Id);
+            LogManager.Flush();
         }
 
-        public void AddLike(Photo photo, Person user)
+        public bool AddLike(Photo photo, Person user)
         {
-            using (var connection = new SqlConnection(_connectionSql))
+            _log.Info("Adding like...");
+            if (HaveUser(user.Id))
             {
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                if (HavePhoto(photo.Id))
                 {
-                    var id = Guid.NewGuid();
+                    using (var connection = new SqlConnection(_connectionSql))
+                    {
+                        connection.Open();
+                        using (var command = connection.CreateCommand())
+                        {
+                            if (!HaveLike(photo, user))
+                            {
+                                var id = Guid.NewGuid();
 
-                    command.CommandText = @"insert into [like](id, user_id, photo_id) values(@id, @user_id,
+                                _log.Info("User with id = {0}", user.Id);
+                                HaveUser(user.Id);
+                                _log.Info("Photo with id = {0}", photo.Id);
+                                HavePhoto(photo.Id);
+
+                                command.CommandText = @"insert into [like](id, user_id, photo_id) values(@id, @user_id,
                         @photo_id)";
-                    command.Parameters.AddWithValue(@"id", id);
-                    command.Parameters.AddWithValue(@"user_id", user.Id);
-                    command.Parameters.AddWithValue(@"photo_id", photo.Id);
+                                command.Parameters.AddWithValue(@"id", id);
+                                command.Parameters.AddWithValue(@"user_id", user.Id);
+                                command.Parameters.AddWithValue(@"photo_id", photo.Id);
+                                command.ExecuteNonQuery();
+                                photo.UsersThatLike.Add(user);
 
-                    command.ExecuteNonQuery();
-                    photo.UsersThatLike.Add(user);
+                                _log.Info("Like added.");
+                                LogManager.Flush();
+
+                                return true;
+                            }
+                            //already has like on this photo
+                            _log.Info("Like already exists.");
+                            LogManager.Flush();
+
+                            return false;
+                        }
+                    }
                 }
+                _log.Warn("Photo with id = {0} doesn't exist.", photo.Id);
+                LogManager.Flush();
+
+                return false;
+            }
+            else
+            {
+                // can't find person 
+                _log.Warn("User with id = {0} doesn't exist.", user.Id);
+                LogManager.Flush();
+
+                return false;
             }
         }
 
         public bool HaveLike(Photo photo, Person user)
         {
-            using (var connection = new SqlConnection(_connectionSql))
+            if (HavePhoto(photo.Id) && HaveUser(user.Id))
             {
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                using (var connection = new SqlConnection(_connectionSql))
                 {
-                    command.CommandText =
-                        @"select id from [like] where @user_id = user_id and @photo_id = photo_id";
-                    command.Parameters.AddWithValue(@"user_id", user.Id);
-                    command.Parameters.AddWithValue(@"photo_id", photo.Id);
-
-                    using (var reader = command.ExecuteReader())
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
                     {
-                        reader.Read();
-                        return reader.HasRows;
+                        command.CommandText =
+                            @"select id from [like] where @user_id = user_id and @photo_id = photo_id";
+                        command.Parameters.AddWithValue(@"user_id", user.Id);
+                        command.Parameters.AddWithValue(@"photo_id", photo.Id);
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            reader.Read();
+                            return reader.HasRows;
+                        }
                     }
                 }
+            }
+            else
+            {
+                //can't find photo or user
+                throw new ArgumentException();   
             }
         }
 
         public void DeleteLike(Photo photo, Person user)
         {
-            using (var connection = new SqlConnection(_connectionSql))
+            if (HaveUser(user.Id) && HavePhoto(photo.Id))
             {
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                using (var connection = new SqlConnection(_connectionSql))
                 {
-                    command.CommandText = @"delete [like] where @user_id = user_id and @photo_id = photo_id";
-                    command.Parameters.AddWithValue(@"user_id", user.Id);
-                    command.Parameters.AddWithValue(@"photo_id", photo.Id);
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        if (HaveLike(photo, user))
+                        {
+                            command.CommandText = @"delete [like] where @user_id = user_id and @photo_id = photo_id";
+                            command.Parameters.AddWithValue(@"user_id", user.Id);
+                            command.Parameters.AddWithValue(@"photo_id", photo.Id);
 
-                    command.ExecuteNonQuery();
+                            command.ExecuteNonQuery();
+                        }
+                    }
                 }
+            }
+            else
+            {
+                //can't find user or photo
+                throw new ArgumentException();
             }
         }
 
         public List<Person> GetLikes(Photo photo)
         {
-            List<Person> persons = new List<Person>();
-            using (var connection = new SqlConnection(_connectionSql))
+            if (HavePhoto(photo.Id))
             {
-
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                var persons = new List<Person>();
+                using (var connection = new SqlConnection(_connectionSql))
                 {
-                    command.CommandText = @"select * from [like] where @photo_id = photo_id";
-                    command.Parameters.AddWithValue(@"photo_id", photo.Id);
-
-                    using (var reader = command.ExecuteReader())
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
                     {
-                        while (reader.Read())
+                        command.CommandText = @"select * from [like] where @photo_id = photo_id";
+                        command.Parameters.AddWithValue(@"photo_id", photo.Id);
+
+                        using (var reader = command.ExecuteReader())
                         {
-                            var user = new Person
+                            while (reader.Read())
                             {
-                                Id = reader.GetGuid(reader.GetOrdinal(@"user_id"))
-                            };
-                            user = GetUser(user.Id);
-                            persons.Add(user);
+                                var user = new Person
+                                {
+                                    Id = reader.GetGuid(reader.GetOrdinal(@"user_id"))
+                                };
+                                user = GetUser(user.Id);
+                                persons.Add(user);
+                            }
                         }
                     }
                 }
+                return persons;
             }
-            return persons;
+            else
+            {
+                //can't find photo
+                throw new ArgumentException();
+            }
+            
         }
 
         public bool HaveHashtag(Comment comment, string hashtag)
         {
-            using (var connection = new SqlConnection(_connectionSql))
+            if (HaveComment(comment.Id) && hashtag != string.Empty)
             {
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                using (var connection = new SqlConnection(_connectionSql))
                 {
-                    command.CommandText =
-                        @"select id from [hashtag] where @text = text";
-                    command.Parameters.AddWithValue(@"text", hashtag);
-                    Guid hashtagId;
-
-                    using (var reader = command.ExecuteReader())
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
                     {
-                        reader.Read();
-                        if (!reader.HasRows)
+                        command.CommandText =
+                            @"select id from [hashtag] where @text = text";
+                        command.Parameters.AddWithValue(@"text", hashtag);
+                        Guid hashtagId;
+
+                        using (var reader = command.ExecuteReader())
                         {
-                            return false;
+                            reader.Read();
+                            if (!reader.HasRows)
+                            {
+                                return false;
+                            }
+                            hashtagId = reader.GetGuid(reader.GetOrdinal("id"));
                         }
-                        hashtagId = reader.GetGuid(reader.GetOrdinal("id"));
-                    }
 
-                    command.CommandText =
-                        @"select id from [hashtagcomments] where @comment_id = comment_id and @hashtag_id = hashtag_id";
-                    command.Parameters.AddWithValue(@"comment_id", comment.Id);
-                    command.Parameters.AddWithValue(@"hashtag_id", hashtagId);
+                        command.CommandText =
+                            @"select id from [hashtagcomments] where @comment_id = comment_id and @hashtag_id = hashtag_id";
+                        command.Parameters.AddWithValue(@"comment_id", comment.Id);
+                        command.Parameters.AddWithValue(@"hashtag_id", hashtagId);
 
-                    using (var reader = command.ExecuteReader())
-                    {
-                        reader.Read();
-                        return reader.HasRows;
+                        using (var reader = command.ExecuteReader())
+                        {
+                            reader.Read();
+                            return reader.HasRows;
+                        }
                     }
                 }
             }
+            else
+            {
+                //can't find comment or empty hashtag
+                throw new ArgumentException();
+            }
+            
         }
 
         public Guid GetHashtag(string hashtag)
         {
-            using (var connection = new SqlConnection(_connectionSql))
+            if (hashtag != string.Empty)
             {
-                connection.Open();
-   
-                using (var command = connection.CreateCommand())
+                using (var connection = new SqlConnection(_connectionSql))
                 {
-                    command.CommandText =
-                       @"select id from [hashtag] where @text = text";
-                    command.Parameters.AddWithValue(@"text", hashtag);
+                    connection.Open();
 
-                    using (var reader = command.ExecuteReader())
+                    using (var command = connection.CreateCommand())
                     {
-                        reader.Read();
-                        if (!reader.HasRows)
+                        command.CommandText =
+                            @"select id from [hashtag] where @text = text";
+                        command.Parameters.AddWithValue(@"text", hashtag);
+
+                        using (var reader = command.ExecuteReader())
                         {
-                            return Guid.Empty;
+                            reader.Read();
+                            if (!reader.HasRows)
+                            {
+                                return Guid.Empty;
+                            }
+                            return reader.GetGuid(reader.GetOrdinal("id"));
                         }
-                        return reader.GetGuid(reader.GetOrdinal("id"));
                     }
                 }
+            }
+            else
+            {
+                //empty hashtag
+                throw new ArgumentException();
             }
         }
 
         public Comment AddHashtag(Comment comment, string hashtag)
         {
-            using (var connection = new SqlConnection(_connectionSql))
+            if (HaveComment(comment.Id) && hashtag != string.Empty)
             {
-                connection.Open();
-                var hashtagId = Guid.NewGuid();
-                using (var command = connection.CreateCommand())
+                using (var connection = new SqlConnection(_connectionSql))
                 {
-                    command.CommandText = @"insert into [hashtag](id, text) values(@id, @text)";
-                    command.Parameters.AddWithValue(@"id", hashtagId);
-                    command.Parameters.AddWithValue(@"text", hashtag);
+                    connection.Open();
+                    var hashtagId = Guid.NewGuid();
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText = @"insert into [hashtag](id, text) values(@id, @text)";
+                        command.Parameters.AddWithValue(@"id", hashtagId);
+                        command.Parameters.AddWithValue(@"text", hashtag);
 
-                    command.ExecuteNonQuery();
-                    command.Parameters.Clear();
+                        command.ExecuteNonQuery();
+                        command.Parameters.Clear();
 
-                    var hashtagInCommentId = Guid.NewGuid();
-                    command.CommandText = @"insert into [hashtagcomments](id, hashtag_id, comment_id) values(@id, @hashtag_id, @comment_id)";
-                    command.Parameters.AddWithValue(@"id", hashtagInCommentId);
-                    command.Parameters.AddWithValue(@"hashtag_id", hashtagId);
-                    command.Parameters.AddWithValue(@"comment_id", comment.Id);
+                        var hashtagInCommentId = Guid.NewGuid();
+                        command.CommandText =
+                            @"insert into [hashtagcomments](id, hashtag_id, comment_id) values(@id, @hashtag_id, @comment_id)";
+                        command.Parameters.AddWithValue(@"id", hashtagInCommentId);
+                        command.Parameters.AddWithValue(@"hashtag_id", hashtagId);
+                        command.Parameters.AddWithValue(@"comment_id", comment.Id);
 
-                    command.ExecuteNonQuery();
-                    return comment;
+                        command.ExecuteNonQuery();
+                        return comment;
+                    }
                 }
-            }   
+            }
+            else
+            {
+                //can't find comment or string is empty
+                throw new ArgumentException();
+            }
+            
         }
 
         public List<Photo> GetLatestPhotos(DateTime timeFrom, DateTime timeTo)
@@ -609,67 +1152,103 @@ namespace InstaKiller.DataLayer.Sql
 
         public void DeleteHashtag(Comment comment, string hashtag)
         {
-            using (var connection = new SqlConnection(_connectionSql))
+            if (HaveComment(comment.Id) && hashtag != string.Empty)
             {
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                using (var connection = new SqlConnection(_connectionSql))
                 {
-                    var hashtagId = GetHashtag(hashtag);
-                    command.CommandText = @"delete [hashtagcomments] where @comment_id = comment_id and @hashtag_id = hashtag_id";
-                    command.Parameters.AddWithValue(@"comment_id", comment.Id);
-                    command.Parameters.AddWithValue(@"hashtag_id", hashtagId);
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        var hashtagId = GetHashtag(hashtag);
+                        if (hashtagId != Guid.Empty)
+                        {
+                            command.CommandText =
+                                @"delete [hashtagcomments] where @comment_id = comment_id and @hashtag_id = hashtag_id";
+                            command.Parameters.AddWithValue(@"comment_id", comment.Id);
+                            command.Parameters.AddWithValue(@"hashtag_id", hashtagId);
 
-                    command.ExecuteNonQuery();
+                            command.ExecuteNonQuery();
+                        }
+                        else
+                        {
+                            //can't get id of hashtag 
+                            throw new ArgumentException();
+                        }
+                    }
                 }
+            }
+            else
+            {
+                //can't find comment or string is empty
+                throw new ArgumentException();
             }
         }
 
         public bool HaveSubscribe(Person user, Person userSubscriber)
         {
-            using (var connection = new SqlConnection(_connectionSql))
+            if (HaveUser(user.Id) && HaveUser(userSubscriber.Id))
             {
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                using (var connection = new SqlConnection(_connectionSql))
                 {
-                    command.CommandText = "select id from subscription where @user_subscription_id = user_subscription_id and @user_id = user_id";
-                    command.Parameters.AddWithValue(@"user_subscription_id", user.Id);
-                    command.Parameters.AddWithValue(@"user_id", userSubscriber.Id);
-
-                    using (var reader = command.ExecuteReader())
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
                     {
-                        reader.Read();
-                        return reader.HasRows;
+                        command.CommandText =
+                            "select id from subscription where @user_subscription_id = user_subscription_id and @user_id = user_id";
+                        command.Parameters.AddWithValue(@"user_subscription_id", user.Id);
+                        command.Parameters.AddWithValue(@"user_id", userSubscriber.Id);
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            reader.Read();
+                            return reader.HasRows;
+                        }
                     }
                 }
+            }
+            else
+            {
+                //can't find user or userSubscriber in db
+                throw new ArgumentException();
             }
         }
 
         public List<Person> GetSubscribers(Person user)
         {
-            using (var connection = new SqlConnection(_connectionSql))
+            if (HaveUser(user.Id))
             {
-                List<Person> subscribers = new List<Person>();
-                connection.Open();
-                using (var command = connection.CreateCommand())
+                using (var connection = new SqlConnection(_connectionSql))
                 {
-                    command.CommandText = "select * from subscription where @user_subscription_id = user_subscription_id";
-                    command.Parameters.AddWithValue(@"user_subscription_id", user.Id);
-
-                    using (var reader = command.ExecuteReader())
+                    List<Person> subscribers = new List<Person>();
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
                     {
-                        while (reader.Read())
+                        command.CommandText =
+                            "select * from subscription where @user_subscription_id = user_subscription_id";
+                        command.Parameters.AddWithValue(@"user_subscription_id", user.Id);
+
+                        using (var reader = command.ExecuteReader())
                         {
-                            var userSubscriber = new Person
+                            while (reader.Read())
                             {
-                                Id = reader.GetGuid(reader.GetOrdinal(@"user_id"))
-                            };
-                            userSubscriber = GetUser(userSubscriber.Id);
-                            subscribers.Add(userSubscriber);
+                                var userSubscriber = new Person
+                                {
+                                    Id = reader.GetGuid(reader.GetOrdinal(@"user_id"))
+                                };
+                                userSubscriber = GetUser(userSubscriber.Id);
+                                subscribers.Add(userSubscriber);
+                            }
                         }
                     }
+                    return subscribers;
                 }
-                return subscribers;
             }
+            else
+            {
+                //can't find user
+                throw new ArgumentException();
+            }
+            
         }
 
         public Session AddSession(Session session)
@@ -730,6 +1309,89 @@ namespace InstaKiller.DataLayer.Sql
         public void GetAllUsersSessions()
         {
             throw new NotImplementedException();
+        }
+
+        public void LogUser(Guid userId)
+        {
+            if (userId != Guid.Empty)
+            {
+                var user = GetUser(userId);
+                _log.Debug("User id: {0} \n Name: {1} \n Lastname: {2} \n FirstName: {3} \n" +
+                          "Email: {4} \n", user.Id, user.Name, user.LastName, user.FirstName, user.Email);
+                //TODO: log subscribers    
+            }
+            else
+            {
+                _log.Debug("Don't have user in datebase!");
+            }
+        }
+
+        public void LogPhoto(Guid photoId)
+        {
+            if (photoId != Guid.Empty)
+            {
+                var photo = GetPhoto(photoId);
+                _log.Debug("Photo id: {0} \n User id: {1} \n Image URL: {2} \n" +
+                          "TimeData: {3} \n", photo.Id, photo.UserId, photo.ImageUrl, photo.TimeDate);
+                //TODO: all users that like and all comments
+            }
+            else
+            {
+                _log.Debug("Don't have photo in datebase!");
+            }
+        }
+
+        public void LogComment(Guid commentId)
+        {
+            if (commentId != Guid.Empty)
+            {
+                var comment = GetComment(commentId);
+                _log.Debug("Comment id: {0} \n User id: {1} \n Photo id: {2} \n" +
+                          "Text: {3} \n DateTime: {4} \n", comment.Id, comment.UserId,
+                    comment.PhotoId, comment.Text, comment.DateTime);
+                //TODO: add all hashtags
+            }
+            else
+            {
+                _log.Debug("Don't have comment in datebase!");
+            }
+        }
+
+        public List<Comment> GetAllComments(Guid photoId)
+        {
+            if (photoId != Guid.Empty)
+            {
+                using (var connection = new SqlConnection(_connectionSql))
+                {
+                    List<Comment> AllComments = new List<Comment>();
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText = @"select * from comment where @photo_id = photo_id";
+                        command.Parameters.AddWithValue(@"photo_id", photoId);
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                var comment = new Comment()
+                                {
+                                    Id = reader.GetGuid(reader.GetOrdinal(@"id"))
+                                };
+                                comment = GetComment(comment.Id);
+                                AllComments.Add(comment);
+                            }
+                        }
+
+                        return AllComments;
+                    }
+                }
+            }
+            else
+            {
+                //wrong id
+                throw  new ArgumentException();
+            }
         }
     }
 }

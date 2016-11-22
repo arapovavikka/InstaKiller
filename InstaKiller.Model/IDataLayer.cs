@@ -6,29 +6,30 @@ namespace InstaKiller.Model
     public interface IDataLayer
     {
         //User methods
-        Person AddUser(Person user);
+        bool AddUser(Person user);
         Person GetUser(Guid userId);
         void DeleteUser(Guid userId);
-        Person UpdateUser(Person userUpdate);
+        bool UpdateUser(Guid userId, Person userUpdate);
 
         //Photo methods
-        Photo AddPhoto(Photo photo);
+        bool AddPhoto(Photo photo);
         Photo GetPhoto(Guid photoId);
         void DeletePhoto(Guid photoId);
-        Photo UpdatePhoto(Photo photoUpdate);
+        bool UpdatePhoto(Guid photoId, Photo photoUpdate);
         List<Photo> GetLatestPhotos(DateTime timeFrom, DateTime timeTo);
+        List<Comment> GetAllComments(Guid photoId);
 
         //Like methods
-        void AddLike(Photo photo, Person user);
+        bool AddLike(Photo photo, Person user);
         List<Person> GetLikes(Photo photo);
         void DeleteLike(Photo photo, Person user);
         bool HaveLike(Photo photo, Person user);
 
         //Comment methods
-        Comment AddComment(Comment comment);
+        bool AddComment(Comment comment);
         Comment GetComment(Guid commentId);
         void DeleteComment(Guid commentId);
-        Comment UpdateComment(Comment commentUpdate);
+        bool UpdateComment(Guid commentId, Comment commentUpdate);
 
         //Hashtag methods
         List<string> GetAllHashtags(Comment comment);

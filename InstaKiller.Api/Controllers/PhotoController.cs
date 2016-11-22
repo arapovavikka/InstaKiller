@@ -20,7 +20,7 @@ namespace InstaKiller.Api.Controllers
         [Route("api/v1/photo")]
         public Photo PostPhoto(Photo photo)
         {
-            photo = _dataLayer.AddPhoto(photo);
+            _dataLayer.AddPhoto(photo);
             return _dataLayer.GetPhoto(photo.Id);
         }
 
@@ -35,8 +35,7 @@ namespace InstaKiller.Api.Controllers
         [Route("api/v1/photo/{id}")]
         public Photo UpdatePhoto(Guid id, Photo photo)
         {
-            photo.Id = id;
-            photo = _dataLayer.UpdatePhoto(photo);
+            _dataLayer.UpdatePhoto(id, photo);
             return _dataLayer.GetPhoto(photo.Id);
         }
 

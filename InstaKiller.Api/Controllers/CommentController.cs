@@ -19,7 +19,7 @@ namespace InstaKiller.Api.Controllers
         [Route("api/v1/comment")]
         public Comment PostComment(Comment comment)
         {
-            comment = _dataLayer.AddComment(comment);
+            _dataLayer.AddComment(comment);
             return _dataLayer.GetComment(comment.Id);
         }
 
@@ -34,8 +34,7 @@ namespace InstaKiller.Api.Controllers
         [Route("api/v1/comment/{id}")]
         public Comment ChangeComment(Guid id, Comment comment)
         {
-            comment.Id = id;
-            comment = _dataLayer.UpdateComment(comment);
+            _dataLayer.UpdateComment(id, comment);
             return _dataLayer.GetComment(comment.Id);
         }
 

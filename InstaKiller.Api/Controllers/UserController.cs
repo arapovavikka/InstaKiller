@@ -20,7 +20,7 @@ namespace InstaKiller.Api.Controllers
         [Route("api/v1/user")]
         public Person PostUser(Person user)
         {
-            user = _dataLayer.AddUser(user);
+            _dataLayer.AddUser(user);
             return _dataLayer.GetUser(user.Id);
         }
 
@@ -35,8 +35,7 @@ namespace InstaKiller.Api.Controllers
         [Route("api/v1/user/{id}")]
         public Person UpdateUser(Guid id, Person user)
         {
-            user.Id = id;
-            user = _dataLayer.UpdateUser(user);
+            _dataLayer.UpdateUser(id, user);
             return _dataLayer.GetUser(user.Id);
         }
 

@@ -10,6 +10,7 @@ namespace InstaKiller.Model
         public string ImageUrl { get; set; }
         public DateTime TimeDate { get; set; }
         public List<Person> UsersThatLike { get; set; }
+        public List<Comment> AllComments { get; set; }
 
         public Photo()
         {
