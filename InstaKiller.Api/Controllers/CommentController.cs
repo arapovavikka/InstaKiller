@@ -5,7 +5,7 @@ using System.Net;
 using System.Net.Http;
 using System.Web.Http;
 using InstaKiller.Model;
-using InstaKiller.DataLayer.Sql;
+using InstaKiller.Services;
 
 namespace InstaKiller.Api.Controllers
 {
@@ -13,36 +13,37 @@ namespace InstaKiller.Api.Controllers
     {
         private const string ConnectionSql = @"Data Source=TOSHA-PC\SQLEXPRESS;
             Initial Catalog=Insta_Killer;Integrated Security=True";
-        private readonly IDataLayer _dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
+        private readonly InstaKiller.Services.IDataLayer _dataLayer = new InstaKiller.DataLayer.Sql.DataLayer(ConnectionSql);
 
         [HttpPost]
-        [Route("api/v1/comment")]
-        public Comment PostComment(Comment comment)
+        [Route("api/v1/photo/{photoId}/comment")]
+        public Comment PostComment(Guid photoId, Comment comment)
         {
+            comment.PhotoId = photoId;
             _dataLayer.AddComment(comment);
             return _dataLayer.GetComment(comment.Id);
         }
 
         [HttpGet]
-        [Route("api/v1/comment/{id}")]
-        public Comment GetComment(Guid id)
+        [Route("api/v1/photo/{photoId}/comment/{id}")]
+        public Comment GetComment(Guid photoId, Guid id)
         {
-            return _dataLayer.GetComment(id);
+            return _dataLayer.GetComment(photoId, id);
         }
 
         [HttpPost]
-        [Route("api/v1/comment/{id}")]
-        public Comment ChangeComment(Guid id, Comment comment)
+        [Route("api/v1/photo/{photoId}/comment/{id}")]
+        public Comment ChangeComment(Guid photoId, Guid id, Comment comment)
         {
             _dataLayer.UpdateComment(id, comment);
             return _dataLayer.GetComment(comment.Id);
         }
 
         [HttpDelete]
-        [Route("api/v1/comment/{id}")]
-        public void DeleteComment(Guid id)
+        [Route("api/v1/photo/{photoId}/comment/{id}")]
+        public bool DeleteComment(Guid photoId, Guid id)
         {
-            _dataLayer.DeleteComment(id);
+            return _dataLayer.DeleteComment(photoId, id);
         }
     }
 }

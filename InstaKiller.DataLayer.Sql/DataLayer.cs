@@ -3,15 +3,16 @@ using System.Collections.Generic;
 using InstaKiller.Model;
 using System.Data.SqlClient;
 using NLog;
+using InstaKiller.Services;
 
 
 namespace InstaKiller.DataLayer.Sql
 {
-    public class DataLayer:IDataLayer
+    public class DataLayer : InstaKiller.Services.IDataLayer
     {
         private readonly string _connectionSql;
         private readonly Logger _log = LogManager.GetCurrentClassLogger();
-        
+
         public DataLayer(string connectionSql)
         {
             if (connectionSql == null) throw new ArgumentNullException(nameof(connectionSql));
@@ -30,10 +31,7 @@ namespace InstaKiller.DataLayer.Sql
 
                     using (var command = connection.CreateCommand())
                     {
-                        do
-                        {
-                            comment.Id = Guid.NewGuid();
-                        } while (HaveComment(comment.Id));
+                        comment.Id = Guid.NewGuid();
                         comment.DateTime = DateTime.Now;
                         _log.Info("Unique ID generated:{0}", comment.Id);
 
@@ -48,7 +46,6 @@ namespace InstaKiller.DataLayer.Sql
 
                         _log.Info("Comment added.");
                         LogComment(comment.Id);
-                        LogManager.Flush();
 
                         return true;
                     }
@@ -57,10 +54,10 @@ namespace InstaKiller.DataLayer.Sql
             //can't find person that want add comment
             // or can't find photo 
             _log.Debug("Comment wasn't added");
-            _log.Error("User id: {0}\n Photo id: {1} \n Comment with id = {2} wasn't added", comment.UserId, comment.PhotoId, comment.Id);
+            _log.Error("User id: {0}\n Photo id: {1} \n Comment with id = {2} wasn't added", comment.UserId,
+                comment.PhotoId, comment.Id);
             LogUser(comment.UserId);
             LogPhoto(comment.PhotoId);
-            LogManager.Flush();
 
             return false;
         }
@@ -75,10 +72,7 @@ namespace InstaKiller.DataLayer.Sql
                     connection.Open();
                     using (var command = connection.CreateCommand())
                     {
-                        do
-                        {
-                            photo.Id = Guid.NewGuid();
-                        } while (HavePhoto(photo.Id));
+                        photo.Id = Guid.NewGuid();
                         photo.TimeDate = DateTime.Now;
 
                         command.CommandText = @"insert into photo(id, user_id, date_time, image_url) 
@@ -91,7 +85,7 @@ namespace InstaKiller.DataLayer.Sql
 
                         _log.Info("Photo added with id: {0}", photo.Id);
                         LogPhoto(photo.Id);
-                        LogManager.Flush();
+       
 
                         return true;
                     }
@@ -102,7 +96,6 @@ namespace InstaKiller.DataLayer.Sql
             _log.Error("User id = {0}\n Photo with id = {1} wasn't added.", photo.UserId, photo.Id);
             LogUser(photo.UserId);
             LogPhoto(photo.Id);
-            LogManager.Flush();
 
             return false;
         }
@@ -124,7 +117,6 @@ namespace InstaKiller.DataLayer.Sql
                         {
                             reader.Read();
                             _log.Info(reader.HasRows ? "User exists." : "User doesn't exist.");
-                            LogManager.Flush();
 
                             return reader.HasRows;
                         }
@@ -133,7 +125,6 @@ namespace InstaKiller.DataLayer.Sql
             }
             //wrong user id
             _log.Warn("User doesn't exist.");
-            LogManager.Flush();
 
             return false;
         }
@@ -152,10 +143,9 @@ namespace InstaKiller.DataLayer.Sql
                             "select text, user_id, photo_id, date_time from comment where @id = id";
                         command.Parameters.AddWithValue(@"id", commentId);
                         using (var reader = command.ExecuteReader())
-                        { 
+                        {
                             reader.Read();
                             _log.Info(reader.HasRows ? "Comment exists." : "Comment doesn't exist.");
-                            LogManager.Flush();
 
                             return reader.HasRows;
                         }
@@ -164,8 +154,44 @@ namespace InstaKiller.DataLayer.Sql
             }
             //wrong id of comment
             _log.Warn("Comment doesn't exist.");
-            LogManager.Flush();
 
+            return false;
+        }
+
+        public bool HaveLike(Guid photoId, Guid likeId)
+        {
+            _log.Info("Checking existence of like...");
+            if (likeId != Guid.Empty && photoId != Guid.Empty)
+            {
+                using (var connection = new SqlConnection(_connectionSql))
+                {
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText =
+                            "select user_id, photo_id from [like] where @id = id";
+                        command.Parameters.AddWithValue(@"id", likeId);
+                        using (var reader = command.ExecuteReader())
+                        {
+                            reader.Read();
+                            _log.Info(reader.HasRows ? "Comment exists." : "Comment doesn't exist.");
+
+                            if (reader.HasRows)
+                            {
+                                if (reader.GetGuid(reader.GetOrdinal("photo_id")) == photoId)
+                                {
+                                    return true;
+                                }
+                                return false;
+                            }
+                            else
+                            {
+                                return false;
+                            }
+                        }
+                    }
+                }
+            }
             return false;
         }
 
@@ -194,14 +220,12 @@ namespace InstaKiller.DataLayer.Sql
 
                             _log.Info("User updated.");
                             LogUser(userId);
-                            LogManager.Flush();
 
                             return true;
                         }
                         _log.Debug("User wasn't updated.");
                         _log.Error("User wasn't updated at {0}. User id = {1}", DateTime.Now, userId);
-                        LogManager.Flush();
-                            
+
                         return false;
                     }
                 }
@@ -235,13 +259,13 @@ namespace InstaKiller.DataLayer.Sql
 
                             _log.Info("Photo updated.");
                             LogPhoto(photoId);
-                            LogManager.Flush();
+                             
 
                             return true;
                         }
                         _log.Debug("Photo doesn't exist.");
                         _log.Error("Photo with id = {0} doesn't exist.", photoId);
-                        LogManager.Flush();
+                         
 
                         return false;
                     }
@@ -249,7 +273,7 @@ namespace InstaKiller.DataLayer.Sql
             }
             //empty photo id
             _log.Debug("Photo doesn't exist.");
-            LogManager.Flush();
+             
 
             return false;
         }
@@ -271,16 +295,16 @@ namespace InstaKiller.DataLayer.Sql
                         {
                             reader.Read();
                             _log.Info(reader.HasRows ? "Photo exists." : "Photo doesn't exist.");
-                            LogManager.Flush();
+                             
                             return reader.HasRows;
                         }
                     }
-                   
+
                 }
             }
             //can't find photo
             _log.Debug("Photo doesn't exist.");
-            LogManager.Flush();
+             
 
             return false;
         }
@@ -293,10 +317,7 @@ namespace InstaKiller.DataLayer.Sql
                 connection.Open();
                 using (var command = connection.CreateCommand())
                 {
-                    do
-                    {
-                        user.Id = Guid.NewGuid();
-                    } while (HaveUser(user.Id));
+                    user.Id = Guid.NewGuid();
 
                     _log.Info("Unique id generated: {0}", user.Id);
 
@@ -311,7 +332,7 @@ namespace InstaKiller.DataLayer.Sql
 
                     _log.Info("User added.");
                     LogUser(user.Id);
-                    LogManager.Flush();
+                     
 
                     return true;
                 }
@@ -343,13 +364,13 @@ namespace InstaKiller.DataLayer.Sql
 
                             _log.Info("Comment updated.");
                             LogComment(commentId);
-                            LogManager.Flush();
+                             
 
                             return true;
                         }
                         _log.Debug("Comment doesn't exist");
                         _log.Error("Comment with id = {0} doesn't exist", commentId);
-                        LogManager.Flush();
+                         
 
                         return false;
                     }
@@ -357,7 +378,7 @@ namespace InstaKiller.DataLayer.Sql
             }
             //wrong comment id
             _log.Debug("Comment doesn't exist.");
-            LogManager.Flush();
+             
 
             return false;
         }
@@ -386,7 +407,7 @@ namespace InstaKiller.DataLayer.Sql
                             if (reader.HasRows)
                             {
                                 _log.Info("Comment with id = {0} was found.", commentId);
-                                LogManager.Flush();
+                                 
 
                                 return new Comment
                                 {
@@ -401,7 +422,7 @@ namespace InstaKiller.DataLayer.Sql
                             //if don't find comment in db
                             _log.Debug("Comment with id = {0} wasn't found.", commentId);
                             _log.Error("Comment with id = {0} wasn't found.", commentId);
-                            LogManager.Flush();
+                             
 
                             return new Comment();
                         }
@@ -409,12 +430,12 @@ namespace InstaKiller.DataLayer.Sql
                 }
             }
             _log.Debug("Comment doesn't exist.");
-            LogManager.Flush();
+             
 
             return new Comment();
         }
 
-        public void DeleteUser(Guid userId)
+        public bool DeleteUser(Guid userId)
         {
             _log.Info("Deleting user...");
             if (userId != Guid.Empty)
@@ -431,25 +452,30 @@ namespace InstaKiller.DataLayer.Sql
                             command.CommandText = @"delete person where @id = id";
                             command.Parameters.AddWithValue(@"id", userId);
                             command.ExecuteNonQuery();
-                            _log.Info(!HaveUser(userId)?("User with id = " + userId + " was deleted.")
+                            _log.Info(!HaveUser(userId)
+                                ? ("User with id = " + userId + " was deleted.")
                                 : "User with id = " + userId + " wasn't deleted.");
+
+                            return !HaveUser(userId);
                         }
                         else
                         {
                             _log.Info("User with id = {0} doesn't exist.", userId);
+                            return false;
                         }
-                        LogManager.Flush();
                     }
                 }
             }
             else
             {
                 _log.Info("User doesn't exist.");
-                LogManager.Flush();
+                 
+
+                return false;
             }
         }
 
-        public void DeleteComment(Guid commentId)
+        public bool DeleteComment(Guid commentId)
         {
             _log.Info("Deleting comment...");
             LogComment(commentId);
@@ -469,14 +495,28 @@ namespace InstaKiller.DataLayer.Sql
                             command.Parameters.AddWithValue(@"id", commentId);
                             command.ExecuteNonQuery();
 
-                            _log.Info(!HaveComment(commentId) ? "Comment with id = " + commentId + " was deleted." 
-                                : "Comment with id = " + commentId + " wasn't deleted.");
+                            if (!HaveComment(commentId))
+                            {
+                                _log.Info("Comment with id = " + commentId + " was deleted.");
+                                 
+
+                                return true;
+                            }
+                            else
+                            {
+                                _log.Info("Comment with id = " + commentId + " wasn't deleted.");
+                                 
+
+                                return false;
+                            }
                         }
                         else
                         {
                             _log.Info("Comment with id = {0} doesn't exist.", commentId);
+                             
+
+                            return false;
                         }
-                        LogManager.Flush();
                     }
                 }
             }
@@ -484,7 +524,9 @@ namespace InstaKiller.DataLayer.Sql
             {
                 //empty id
                 _log.Info("Comment doesn't exist.");
-                LogManager.Flush();
+                 
+
+                return false;
             }
         }
 
@@ -508,7 +550,7 @@ namespace InstaKiller.DataLayer.Sql
                             if (reader.HasRows)
                             {
                                 _log.Info("Photo with id = {0} was found.", photoId);
-                                LogManager.Flush();
+                                 
 
                                 return new Photo
                                 {
@@ -523,7 +565,7 @@ namespace InstaKiller.DataLayer.Sql
                             //if don't find photo in db
                             _log.Debug("Photo with id = {0} wasn't found.", photoId);
                             _log.Error("Photo with id = {0} wasn't found.", photoId);
-                            LogManager.Flush();
+                             
 
                             return new Photo();
                         }
@@ -532,7 +574,7 @@ namespace InstaKiller.DataLayer.Sql
             }
             //empty id
             _log.Debug("Photo doesn't exist.");
-            LogManager.Flush();
+             
 
             return new Photo();
         }
@@ -558,7 +600,7 @@ namespace InstaKiller.DataLayer.Sql
                             if (reader.HasRows)
                             {
                                 _log.Info("User with id = {0} was found.", userId);
-                                LogManager.Flush();
+                                 
 
                                 return new Person
                                 {
@@ -574,7 +616,7 @@ namespace InstaKiller.DataLayer.Sql
                             //if don't find user in db
                             _log.Info("User with id = {0} wasn't found.", userId);
                             _log.Error("User with id = {0} wasn't found.", userId);
-                            LogManager.Flush();
+                             
 
                             return new Person();
                         }
@@ -582,12 +624,12 @@ namespace InstaKiller.DataLayer.Sql
                 }
             }
             _log.Info("User doesn't exist.");
-            LogManager.Flush();
+             
 
             return new Person();
         }
 
-        public void DeletePhoto(Guid photoId)
+        public bool DeletePhoto(Guid photoId)
         {
             _log.Info("Deleting photo...");
             if (photoId != Guid.Empty)
@@ -608,12 +650,18 @@ namespace InstaKiller.DataLayer.Sql
                             _log.Info(!HavePhoto(photoId)
                                 ? "Photo with id = " + photoId + " was deleted."
                                 : "Photo with id = " + photoId + " wasn't deleted.");
+                             
+
+                            return !HavePhoto(photoId);
                         }
                         else
                         {
                             _log.Info("Photo with id = {0} doesn't exist.", photoId);
+                             
+
+                            return false;
                         }
-                        LogManager.Flush();
+
                     }
                 }
             }
@@ -621,7 +669,9 @@ namespace InstaKiller.DataLayer.Sql
             {
                 //wrong id
                 _log.Info("Photo doesn't exist.");
-                LogManager.Flush();
+                 
+
+                return false;
             }
         }
 
@@ -679,7 +729,7 @@ namespace InstaKiller.DataLayer.Sql
             {
                 _log.Warn("User with id = {0} doesn't exist.", user.Id);
             }
-            LogManager.Flush();
+             
         }
 
         public bool HaveSubscription(Person user, Person userSubscription)
@@ -695,7 +745,7 @@ namespace InstaKiller.DataLayer.Sql
                         using (var command = connection.CreateCommand())
                         {
                             _log.Info("User with id = {0}", user.Id);
-                            HaveUser(user.Id);                         
+                            HaveUser(user.Id);
                             _log.Info("User subscriber with id = {0}", userSubscription.Id);
                             HaveUser(userSubscription.Id);
 
@@ -707,8 +757,8 @@ namespace InstaKiller.DataLayer.Sql
                             using (var reader = command.ExecuteReader())
                             {
                                 reader.Read();
-                                _log.Info(reader.HasRows?"Subscription exists.":"Subscription doesn't exist.");
-                                LogManager.Flush();
+                                _log.Info(reader.HasRows ? "Subscription exists." : "Subscription doesn't exist.");
+                                 
 
                                 return reader.HasRows;
                             }
@@ -716,12 +766,12 @@ namespace InstaKiller.DataLayer.Sql
                     }
                 }
                 _log.Warn("User subscriber with id = {0} doesn't exist.", userSubscription.Id);
-                LogManager.Flush();
+                 
 
                 return false;
             }
             _log.Warn("User with id = {0} doesn't exist.", user.Id);
-            LogManager.Flush();
+             
 
             return false;
         }
@@ -752,7 +802,7 @@ namespace InstaKiller.DataLayer.Sql
                             {
                                 reader.Read();
                                 _log.Info(reader.HasRows ? "User has subscriber." : "User doesn't have subsciber.");
-                                LogManager.Flush();
+                                 
 
                                 return reader.HasRows;
                             }
@@ -760,12 +810,12 @@ namespace InstaKiller.DataLayer.Sql
                     }
                 }
                 _log.Warn("User subscriber with id = {0} doesn't exist.", userSubscription.Id);
-                LogManager.Flush();
+                 
 
                 return false;
             }
             _log.Debug("User with id = {0} doesn't exist.", user.Id);
-            LogManager.Flush();
+             
 
             return false;
         }
@@ -811,11 +861,11 @@ namespace InstaKiller.DataLayer.Sql
                 //don't have user in db
                 _log.Warn("User with id = {0} doesn't exist.", user.Id);
             }
-            LogManager.Flush();
+             
             return personsSubscription;
         }
 
-        public void DeleteSubscription(Person user, Person userSubscription)
+        public bool DeleteSubscription(Person user, Person userSubscription)
         {
             _log.Info("Deleting subscriber...");
             if (HaveUser(user.Id))
@@ -840,22 +890,53 @@ namespace InstaKiller.DataLayer.Sql
                                 command.Parameters.AddWithValue(@"user_subscription_id", userSubscription.Id);
 
                                 command.ExecuteNonQuery();
-                                _log.Info(HaveSubscription(user, userSubscription) ? "Subscription wasn't removed" : "Subscription was removed.");
+                                _log.Info(HaveSubscription(user, userSubscription)
+                                    ? "Subscription wasn't removed"
+                                    : "Subscription was removed.");
+                                return !HaveSubscription(user, userSubscription);
                             }
                             else
                             {
                                 _log.Info("Subscription doesn't exist.");
+                                return false;
                             }
                         }
                     }
                 }
                 _log.Warn("User subscriber with id = {0} doesn't exist.", userSubscription.Id);
+                return false;
             }
             _log.Warn("User with id = {0} doesn't exist.", user.Id);
-            LogManager.Flush();
+             
+            return false;
         }
 
-        public bool AddLike(Photo photo, Person user)
+        public bool DeleteSubscription(Person user, Guid relationId)
+        {
+            if (HaveSubscription(user, relationId))
+            {
+                using (var connection = new SqlConnection(_connectionSql))
+                {
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText =
+                                    @"delete subscription where @user_id = user_id and @id = id";
+                        command.Parameters.AddWithValue(@"user_id", user.Id);
+                        command.Parameters.AddWithValue(@"id", relationId);
+
+                        command.ExecuteNonQuery();
+                        _log.Info(HaveSubscription(user, relationId)
+                            ? "Subscription wasn't removed"
+                            : "Subscription was removed.");
+                        return !HaveSubscription(user, relationId);
+                    }
+                }
+            }
+            return false;
+        }
+
+        public Guid AddLike(Photo photo, Person user)
         {
             _log.Info("Adding like...");
             if (HaveUser(user.Id))
@@ -885,30 +966,30 @@ namespace InstaKiller.DataLayer.Sql
                                 photo.UsersThatLike.Add(user);
 
                                 _log.Info("Like added.");
-                                LogManager.Flush();
+                                 
 
-                                return true;
+                                return id;
                             }
                             //already has like on this photo
                             _log.Info("Like already exists.");
-                            LogManager.Flush();
+                             
 
-                            return false;
+                            return Guid.Empty;
                         }
                     }
                 }
                 _log.Warn("Photo with id = {0} doesn't exist.", photo.Id);
-                LogManager.Flush();
+                 
 
-                return false;
+                return Guid.Empty;
             }
             else
             {
                 // can't find person 
                 _log.Warn("User with id = {0} doesn't exist.", user.Id);
-                LogManager.Flush();
+                 
 
-                return false;
+                return Guid.Empty;
             }
         }
 
@@ -937,11 +1018,11 @@ namespace InstaKiller.DataLayer.Sql
             else
             {
                 //can't find photo or user
-                throw new ArgumentException();   
+                return false;
             }
         }
 
-        public void DeleteLike(Photo photo, Person user)
+        public bool DeleteLike(Photo photo, Person user)
         {
             if (HaveUser(user.Id) && HavePhoto(photo.Id))
             {
@@ -957,15 +1038,38 @@ namespace InstaKiller.DataLayer.Sql
                             command.Parameters.AddWithValue(@"photo_id", photo.Id);
 
                             command.ExecuteNonQuery();
+                            return !HaveLike(photo, user);
                         }
+                        return false;
                     }
                 }
             }
             else
             {
                 //can't find user or photo
-                throw new ArgumentException();
+                return false;
             }
+        }
+
+        public bool DeleteLike(Photo photo, Guid likeId)
+        {
+            if (HavePhoto(photo.Id) && HaveLike(photo.Id, likeId))
+            {
+                using (var connection = new SqlConnection(_connectionSql))
+                {
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText = @"delete [like] where @id = id and @photo_id = photo_id";
+                        command.Parameters.AddWithValue(@"id", likeId);
+                        command.Parameters.AddWithValue(@"photo_id", photo.Id);
+
+                        command.ExecuteNonQuery();
+                        return !HaveLike(photo.Id, likeId);
+                    }
+                }
+            }
+            return false;
         }
 
         public List<Person> GetLikes(Photo photo)
@@ -1002,7 +1106,7 @@ namespace InstaKiller.DataLayer.Sql
                 //can't find photo
                 throw new ArgumentException();
             }
-            
+
         }
 
         public bool HaveHashtag(Comment comment, string hashtag)
@@ -1047,7 +1151,7 @@ namespace InstaKiller.DataLayer.Sql
                 //can't find comment or empty hashtag
                 throw new ArgumentException();
             }
-            
+
         }
 
         public Guid GetHashtag(string hashtag)
@@ -1117,7 +1221,7 @@ namespace InstaKiller.DataLayer.Sql
                 //can't find comment or string is empty
                 throw new ArgumentException();
             }
-            
+
         }
 
         public List<Photo> GetLatestPhotos(DateTime timeFrom, DateTime timeTo)
@@ -1150,7 +1254,7 @@ namespace InstaKiller.DataLayer.Sql
             return photos;
         }
 
-        public void DeleteHashtag(Comment comment, string hashtag)
+        public bool DeleteHashtag(Comment comment, string hashtag)
         {
             if (HaveComment(comment.Id) && hashtag != string.Empty)
             {
@@ -1168,11 +1272,12 @@ namespace InstaKiller.DataLayer.Sql
                             command.Parameters.AddWithValue(@"hashtag_id", hashtagId);
 
                             command.ExecuteNonQuery();
+                            return !HaveHashtag(comment, hashtag);
                         }
                         else
                         {
                             //can't get id of hashtag 
-                            throw new ArgumentException();
+                            return false;
                         }
                     }
                 }
@@ -1180,8 +1285,32 @@ namespace InstaKiller.DataLayer.Sql
             else
             {
                 //can't find comment or string is empty
-                throw new ArgumentException();
+                return false;
             }
+        }
+
+        public bool HaveSubscription(Person user, Guid relationId)
+        {
+            if (HaveUser(user.Id))
+            {
+                using (var connection = new SqlConnection(_connectionSql))
+                {
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText =
+                            "select id from subscription where @id = id and @user_id = user_id";
+                        command.Parameters.AddWithValue(@"id", relationId);
+                        command.Parameters.AddWithValue(@"user_id", user.Id);
+                        using (var reader = command.ExecuteReader())
+                        {
+                            reader.Read();
+                            return reader.HasRows;
+                        }
+                    }
+                }
+            }
+            return false;
         }
 
         public bool HaveSubscribe(Person user, Person userSubscriber)
@@ -1248,7 +1377,7 @@ namespace InstaKiller.DataLayer.Sql
                 //can't find user
                 throw new ArgumentException();
             }
-            
+
         }
 
         public Session AddSession(Session session)
@@ -1283,7 +1412,8 @@ namespace InstaKiller.DataLayer.Sql
                 connection.Open();
                 using (var command = connection.CreateCommand())
                 {
-                    command.CommandText = "select id, user_id, user_ip, token, date_from, date_to from session where @id = id";
+                    command.CommandText =
+                        "select id, user_id, user_ip, token, date_from, date_to from session where @id = id";
                     command.Parameters.AddWithValue(@"id", sessionId);
 
                     using (var reader = command.ExecuteReader())
@@ -1317,7 +1447,7 @@ namespace InstaKiller.DataLayer.Sql
             {
                 var user = GetUser(userId);
                 _log.Debug("User id: {0} \n Name: {1} \n Lastname: {2} \n FirstName: {3} \n" +
-                          "Email: {4} \n", user.Id, user.Name, user.LastName, user.FirstName, user.Email);
+                           "Email: {4} \n", user.Id, user.Name, user.LastName, user.FirstName, user.Email);
                 //TODO: log subscribers    
             }
             else
@@ -1332,7 +1462,7 @@ namespace InstaKiller.DataLayer.Sql
             {
                 var photo = GetPhoto(photoId);
                 _log.Debug("Photo id: {0} \n User id: {1} \n Image URL: {2} \n" +
-                          "TimeData: {3} \n", photo.Id, photo.UserId, photo.ImageUrl, photo.TimeDate);
+                           "TimeData: {3} \n", photo.Id, photo.UserId, photo.ImageUrl, photo.TimeDate);
                 //TODO: all users that like and all comments
             }
             else
@@ -1347,7 +1477,7 @@ namespace InstaKiller.DataLayer.Sql
             {
                 var comment = GetComment(commentId);
                 _log.Debug("Comment id: {0} \n User id: {1} \n Photo id: {2} \n" +
-                          "Text: {3} \n DateTime: {4} \n", comment.Id, comment.UserId,
+                           "Text: {3} \n DateTime: {4} \n", comment.Id, comment.UserId,
                     comment.PhotoId, comment.Text, comment.DateTime);
                 //TODO: add all hashtags
             }
@@ -1390,8 +1520,135 @@ namespace InstaKiller.DataLayer.Sql
             else
             {
                 //wrong id
-                throw  new ArgumentException();
+                throw new ArgumentException();
             }
+        }
+
+        public Comment GetComment(Guid photoId, Guid commentId)
+        {
+            if (photoId != Guid.Empty && HavePhoto(photoId))
+            {
+                if (commentId != Guid.Empty && HaveComment(commentId))
+                {
+                    List<Comment> allComments = GetAllComments(photoId);
+                    foreach (var comment in allComments)
+                    {
+                        if (comment.Id == commentId)
+                        {
+                            return GetComment(comment.Id);
+                        }
+                    }
+                }
+                return new Comment();
+            }
+            return new Comment();
+        }
+
+        public bool DeleteComment(Guid photoId, Guid commentId)
+        {
+            if (HavePhoto(photoId))
+            {
+                if (HaveComment(commentId))
+                {
+                    if (DeleteComment(commentId))
+                    {
+                        var photo = GetPhoto(photoId);
+                        photo.AllComments = GetAllComments(commentId);
+                        return true;
+                    }
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        public Person GetLike(Photo photo, Guid likeId)
+        {
+            if (HavePhoto(photo.Id) && HaveLike(photo.Id, likeId))
+            {
+                using (var connection = new SqlConnection(_connectionSql))
+                {
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText = @"select * from [like] where @id = id";
+                        command.Parameters.AddWithValue(@"id", likeId);
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                //TODO:add checking that photo_id = photo.Id
+                                var user = new Person
+                                {
+                                    Id = reader.GetGuid(reader.GetOrdinal(@"user_id"))
+                                };
+                                return GetUser(user.Id);
+                            }
+                            return new Person();
+                        }
+                    }
+                }
+            }
+            return new Person();
+        }
+
+        public Guid GetLike(Photo photo, Person user)
+        {
+            if (HavePhoto(photo.Id) && HaveUser(user.Id) && HaveLike(photo, user))
+            {
+                using (var connection = new SqlConnection(_connectionSql))
+                {
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText = @"select * from [like] where @photo_id = photo_id and @user_id = user_id";
+                        command.Parameters.AddWithValue(@"photo_id", photo.Id);
+                        command.Parameters.AddWithValue(@"user_id", user.Id);
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                var likeId = reader.GetGuid(reader.GetOrdinal(@"id"));
+                                return likeId;
+                            }
+                            return Guid.Empty;
+                        }
+                    }
+                }
+            }
+            return Guid.Empty;
+        }
+
+        public Guid GetSubscription(Person user, Person userSubscription)
+        {
+            if (HaveUser(user.Id) && HaveUser(userSubscription.Id) && HaveSubscription(user, userSubscription))
+            {
+                using (var connection = new SqlConnection(_connectionSql))
+                {
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText =
+                            @"select * from subscription where @user_id = user_id and @user_subscription_id = user_subscription_id";
+                        command.Parameters.AddWithValue(@"user_id", user.Id);
+                        command.Parameters.AddWithValue(@"user_subscription_id", userSubscription.Id);
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                var relationId = reader.GetGuid(reader.GetOrdinal(@"id"));
+                                return relationId;
+                            }
+                            return Guid.Empty;
+                        }
+                    }
+                }
+                
+            }
+            return Guid.Empty;
         }
     }
 }

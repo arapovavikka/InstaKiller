@@ -12,37 +12,39 @@ namespace InstaKiller.Api.Controllers
     {
         private const string ConnectionSql = @"Data Source=TOSHA-PC\SQLEXPRESS;
             Initial Catalog=Insta_Killer;Integrated Security=True";
-        private readonly IDataLayer _dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
-
-        //Actions with likes of current photo
+        private readonly InstaKiller.Services.IDataLayer _dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
+        
 
         [HttpPost]
-        [Route("api/v1/like/{id}")]
-        public List<Person> PostLike(Guid id, Person user)
+        [Route("api/v1/photo/{photoId}/like")]
+        public Guid PostLike(Guid photoId, Person user)
         {
-            var photo = _dataLayer.GetPhoto(id);
-            user = _dataLayer.GetUser(user.Id);
-            _dataLayer.AddLike(photo, user);
-            return _dataLayer.GetLikes(photo);
+            var photo = _dataLayer.GetPhoto(photoId);
+            return _dataLayer.AddLike(photo, user);
         }
 
         [HttpGet]
-        [Route("api/v1/like/{id}")]
-        public List<Person> GetLikes(Guid id)
+        [Route("api/v1/photo/{photoId}/like")]
+        public Guid GetLike(Guid photoId, Person user)
         {
-            var photo = _dataLayer.GetPhoto(id);
+            var photo = _dataLayer.GetPhoto(photoId);
+            return _dataLayer.GetLike(photo, user);
+        }
+
+        [HttpGet]
+        [Route("api/v1/photo/{photoId}/likes")]
+        public List<Person> GetLikes(Guid photoId)
+        {
+            var photo = _dataLayer.GetPhoto(photoId);
             return _dataLayer.GetLikes(photo);
         }
 
         [HttpDelete]
-        [Route("api/v1/like/{id}")]
-        public List<Person> DeleteLike(Guid id, Person user)
+        [Route("api/v1/photo/{photoId}/like/{id}")]
+        public bool DeleteLike(Guid photoId, Guid id)
         {
-            user = _dataLayer.GetUser(user.Id);
-            var photo = _dataLayer.GetPhoto(id);
-
-            _dataLayer.DeleteLike(photo, user);
-            return _dataLayer.GetLikes(photo);
+            var photo = _dataLayer.GetPhoto(photoId);
+            return _dataLayer.DeleteLike(photo, id);
         }
     }
 }

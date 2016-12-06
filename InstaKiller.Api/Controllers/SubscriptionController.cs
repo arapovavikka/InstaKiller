@@ -12,36 +12,42 @@ namespace InstaKiller.Api.Controllers
     {
         private const string ConnectionSql = @"Data Source=TOSHA-PC\SQLEXPRESS;
             Initial Catalog=Insta_Killer;Integrated Security=True";
-        private readonly IDataLayer _dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
+        private readonly InstaKiller.Services.IDataLayer _dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
 
         //Actions with user subscription
 
         [HttpPost]
-        [Route("api/v1/subscription/{id}")]
-        public List<Person> PostSubscription(Guid id, Person subscription)
+        [Route("api/v1/user/{userId}/subscription")]
+        public List<Person> PostSubscription(Guid userId, Person subscription)
         {
-            var user = _dataLayer.GetUser(id);
-            subscription = _dataLayer.GetUser(subscription.Id);
+            var user = _dataLayer.GetUser(userId);
             _dataLayer.AddSubscription(user, subscription);
 
             return user.Subscriptions;
         }
 
         [HttpGet]
-        [Route("api/v1/subscription/{id}")]
-        public List<Person> GetSubscriptions(Guid id)
+        [Route("api/v1/user/{userId}/subscriptions")]
+        public List<Person> GetSubscriptions(Guid userId)
         {
-            var user = _dataLayer.GetUser(id);
+            var user = _dataLayer.GetUser(userId);
             return _dataLayer.GetSubscription(user);
         }
 
-        [HttpDelete]
-        [Route("api/v1/subscription/{id}")]
-        public void DeleteSubscription(Guid id, Person subscription)
+        [HttpGet]
+        [Route("api/v1/user/{userId}/subscription")]
+        public Guid GetSubscription(Guid userId, Person subscription)
         {
-            var user = _dataLayer.GetUser(id);
-            subscription = _dataLayer.GetUser(subscription.Id);
-            _dataLayer.DeleteSubscription(user, subscription);
+            var user = _dataLayer.GetUser(userId);
+            return _dataLayer.GetSubscription(user, subscription);
+        }
+
+        [HttpDelete]
+        [Route("api/v1/user/{userId}/subscription/{id}")]
+        public bool DeleteSubscription(Guid userId, Guid id)
+        {
+            var user = _dataLayer.GetUser(userId);
+            return _dataLayer.DeleteSubscription(user, id);
         }
     }
 }

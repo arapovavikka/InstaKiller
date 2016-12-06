@@ -4,6 +4,7 @@ using System.Data.SqlClient;
 using InstaKiller.Model;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
+
 namespace InstaKiller.Test
 {
     [TestClass]
@@ -275,13 +276,13 @@ namespace InstaKiller.Test
             var photo = GeneratePhoto(user.Id);
             dataLayer.AddPhoto(photo);
 
-            var comment = GenerateComment(user.Id, photo.Id);
+            var comment = GenerateComment(user.Id, Guid.NewGuid());
             dataLayer.AddComment(comment);
 
             var resultComment = dataLayer.GetComment(comment.Id);
 
             //assert
-            Assert.AreEqual(resultComment.Id, comment.Id);
+            Assert.AreNotEqual(resultComment.Id, Guid.Empty);
         }
 
         [TestMethod]

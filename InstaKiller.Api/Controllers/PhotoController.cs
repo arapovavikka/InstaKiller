@@ -12,7 +12,7 @@ namespace InstaKiller.Api.Controllers
     {
         private const string ConnectionSql = @"Data Source=TOSHA-PC\SQLEXPRESS;
             Initial Catalog=Insta_Killer;Integrated Security=True";
-        private readonly IDataLayer _dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
+        private readonly InstaKiller.Services.IDataLayer _dataLayer = new DataLayer.Sql.DataLayer(ConnectionSql);
 
         //Actions with photo
 
@@ -41,9 +41,9 @@ namespace InstaKiller.Api.Controllers
 
         [HttpDelete]
         [Route("api/v1/photo/{id}")]
-        public void DeletePhoto(Guid id)
+        public bool DeletePhoto(Guid id)
         {
-            _dataLayer.DeletePhoto(id);
+            return _dataLayer.DeletePhoto(id);
         }
 
     }
