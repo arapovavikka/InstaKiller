@@ -11,6 +11,7 @@ namespace InstaKiller.Services
         Person GetUser(Guid userId);
         bool DeleteUser(Guid userId);
         bool UpdateUser(Guid userId, Person userUpdate);
+        Person GetUserByEmail(string email);
 
         //Photo methods
         bool AddPhoto(Photo photo);

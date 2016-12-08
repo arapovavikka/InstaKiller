@@ -31,6 +31,13 @@ namespace InstaKiller.Api.Controllers
             return _dataLayer.GetUser(id);
         }
 
+        [HttpGet]
+        [Route("api/v1/user/email/{email}")]
+        public Person GetUserByEmail(string email)
+        {
+            return _dataLayer.GetUserByEmail(email);
+        }
+
         [HttpPost]
         [Route("api/v1/user/{id}")]
         public Person UpdateUser(Guid id, Person user)

@@ -1650,5 +1650,45 @@ namespace InstaKiller.DataLayer.Sql
             }
             return Guid.Empty;
         }
+
+        public Person GetUserByEmail(string email)
+        {
+            if (email != String.Empty)
+            {
+                using (var connection = new SqlConnection(_connectionSql))
+                {
+                    connection.Open();
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText = @"select id, user_name, last_name, first_name, password_hash, email from person
+                        where @email = email";
+                        command.Parameters.AddWithValue(@"email", email);
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            reader.Read();
+
+                            if (reader.HasRows)
+                            {
+                                _log.Info("User with email = {0} was found.", email);
+
+
+                                return new Person
+                                {
+                                    //param of Get - ordinal number of coloumn in table
+                                    Id = reader.GetGuid(reader.GetOrdinal(@"id")),
+                                    LastName = reader.GetString(reader.GetOrdinal(@"last_name")),
+                                    FirstName = reader.GetString(reader.GetOrdinal(@"first_name")),
+                                    Name = reader.GetString(reader.GetOrdinal(@"user_name")),
+                                    Email = reader.GetString(reader.GetOrdinal(@"email"))
+                                };
+                            }
+                        }
+                        return new Person();
+                    }
+                }
+            }
+            return new Person();
+        }
     }
 }
