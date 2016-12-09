@@ -12,7 +12,7 @@ namespace InstaKiller.Model
         public string LastName { get; set; }
         public string FirstName { get; set; }
         public string Email { get; set; }
-        public ulong PasswordHash { get; set; }
+        public Int32 PasswordHash { get; set; }
         public string About { get; set; }
         public List<Person> Subscribers { get; set; } 
         public List<Person> Subscriptions { get; set; }

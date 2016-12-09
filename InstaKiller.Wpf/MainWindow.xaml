@@ -7,16 +7,16 @@
         mc:Ignorable="d"
         Title="MainWindow" Height="406.647" Width="622.11">
     <Grid Margin="0,0,-8,0">
-        <Label x:Name="label" Content="InstaKiller" HorizontalAlignment="Left" Margin="318,68,0,0" VerticalAlignment="Top"/>
-        <Label x:Name="label1" Content="YOUR EMAIL" HorizontalAlignment="Left" Margin="240,109,0,0" VerticalAlignment="Top"/>
-        <Label x:Name="label2" Content="PASSWORD" HorizontalAlignment="Left" Margin="240,140,0,0" VerticalAlignment="Top" RenderTransformOrigin="-0.158,-0.269"/>
+        <Label x:Name="labelTitle" Content="InstaKiller" HorizontalAlignment="Left" Margin="318,68,0,0" VerticalAlignment="Top"/>
+        <Label x:Name="labelEmail" Content="YOUR EMAIL" HorizontalAlignment="Left" Margin="240,109,0,0" VerticalAlignment="Top"/>
+        <Label x:Name="labelPassword" Content="PASSWORD" HorizontalAlignment="Left" Margin="240,140,0,0" VerticalAlignment="Top" RenderTransformOrigin="-0.158,-0.269"/>
         <TextBox x:Name="textBoxEmail" HorizontalAlignment="Left" Text="{Binding UserEmail, UpdateSourceTrigger=PropertyChanged}"  Height="23" Margin="323,109,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
-        <PasswordBox x:Name="passwordBoxPassword" HorizontalAlignment="Left" Margin="323,143,0,0" VerticalAlignment="Top" Width="120" Height="23"/>
-        <Button x:Name="button" Content="Sign In" Command="{Binding GetUserByEmail}" HorizontalAlignment="Left" Margin="318,186,0,0" VerticalAlignment="Top" Width="61" Height="22"/>
-        <Button x:Name="button1" Content="Create account" BorderBrush="BlanchedAlmond"  Background="AliceBlue" HorizontalAlignment="Left" Margin="302,224,0,0" VerticalAlignment="Top" Width="95" Height="22"/>
+        <PasswordBox x:Name="passwordBox" HorizontalAlignment="Left" Margin="323,143,0,0" VerticalAlignment="Top" Width="120" Height="23"/>
+        <Button x:Name="buttonSignIn" Content="Sign In" Command="{Binding SignInEmailAndPassword}" CommandParameter="{Binding ElementName=passwordBox}" HorizontalAlignment="Left" Margin="318,186,0,0" VerticalAlignment="Top" Width="61" Height="22"/>
+        <Button x:Name="buttonCreateAccount" Content="Create account" BorderBrush="BlanchedAlmond"  Background="AliceBlue" HorizontalAlignment="Left" Margin="302,224,0,0" VerticalAlignment="Top" Width="95" Height="22"/>
         <Label x:Name="labelExampleEmail" Content="{Binding UserEmail}" HorizontalAlignment="Left" Margin="488,109,0,0" VerticalAlignment="Top" Width="75"/>
         <Label x:Name="labelID" Content="ID" HorizontalAlignment="Left" Margin="240,261,0,0" VerticalAlignment="Top"/>
-        <Label x:Name="labelGetID" HorizontalAlignment="Left" Content="{Binding UserId}" Margin="323,261,0,0" VerticalAlignment="Top"/>
+        <Label x:Name="labelExampleID" HorizontalAlignment="Left" Content="{Binding UserId}" Margin="323,261,0,0" VerticalAlignment="Top"/>
 
     </Grid>
 </Window>

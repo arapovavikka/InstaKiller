@@ -25,5 +25,6 @@ namespace InstaKiller.Wpf
             InitializeComponent();
             DataContext = new MainWindowViewModel();
         }
+
     }
 }

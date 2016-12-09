@@ -321,17 +321,18 @@ namespace InstaKiller.DataLayer.Sql
 
                     _log.Info("Unique id generated: {0}", user.Id);
 
-                    command.CommandText = @"insert into person(id, user_name, last_name, first_name, email) 
-                        values (@id, @user_name, @last_name, @first_name, @email)";
+                    command.CommandText = @"insert into person(id, user_name, last_name, first_name, email, password_hash) 
+                        values (@id, @user_name, @last_name, @first_name, @email, @password_hash)";
                     command.Parameters.AddWithValue("@id", user.Id);
                     command.Parameters.AddWithValue("@user_name", user.Name);
                     command.Parameters.AddWithValue("@first_name", user.FirstName);
                     command.Parameters.AddWithValue("@last_name", user.LastName);
                     command.Parameters.AddWithValue("@email", user.Email);
+                    command.Parameters.AddWithValue("@password_hash", user.PasswordHash);
                     command.ExecuteNonQuery();
 
                     _log.Info("User added.");
-                    LogUser(user.Id);
+                    //LogUser(user.Id);
                      
 
                     return true;
@@ -589,7 +590,7 @@ namespace InstaKiller.DataLayer.Sql
                     connection.Open();
                     using (var command = connection.CreateCommand())
                     {
-                        command.CommandText = @"select id, user_name, last_name, first_name, email from person
+                        command.CommandText = @"select id, user_name, last_name, first_name, email, password_hash from person
                         where @id = id";
                         command.Parameters.AddWithValue(@"id", userId);
 
@@ -600,17 +601,25 @@ namespace InstaKiller.DataLayer.Sql
                             if (reader.HasRows)
                             {
                                 _log.Info("User with id = {0} was found.", userId);
-                                 
 
-                                return new Person
-                                {
-                                    //param of Get - ordinal number of coloumn in table
-                                    Id = reader.GetGuid(reader.GetOrdinal(@"id")),
-                                    LastName = reader.GetString(reader.GetOrdinal(@"last_name")),
-                                    FirstName = reader.GetString(reader.GetOrdinal(@"first_name")),
-                                    Name = reader.GetString(reader.GetOrdinal(@"user_name")),
-                                    Email = reader.GetString(reader.GetOrdinal(@"email"))
-                                };
+                                Person user = new Person();
+                                user.Id = reader.GetGuid(reader.GetOrdinal(@"id"));
+                                user.FirstName = reader.GetString(reader.GetOrdinal(@"first_name"));
+                                user.LastName = reader.GetString(reader.GetOrdinal(@"last_name"));
+                                var PasswordHash = reader.GetValue(reader.GetOrdinal(@"password_hash"));
+                                user.PasswordHash = (int) System.Convert.ChangeType(PasswordHash, typeof(int));
+
+                                //return new Person
+                                //{
+                                //    //param of Get - ordinal number of coloumn in table
+                                //    Id = reader.GetGuid(reader.GetOrdinal(@"id")),
+                                //    LastName = reader.GetString(reader.GetOrdinal(@"last_name")),
+                                //    FirstName = reader.GetString(reader.GetOrdinal(@"first_name")),
+                                //    Name = reader.GetString(reader.GetOrdinal(@"user_name")),
+                                //    Email = reader.GetString(reader.GetOrdinal(@"email")),
+                                //    PasswordHash = reader.GetInt32(reader.GetOrdinal(@"password_hash")),
+                                //};
+                                return user;
                             }
 
                             //if don't find user in db
@@ -1672,6 +1681,8 @@ namespace InstaKiller.DataLayer.Sql
                             {
                                 _log.Info("User with email = {0} was found.", email);
 
+                                var PasswordHash = reader.GetValue(reader.GetOrdinal(@"password_hash"));
+                                
 
                                 return new Person
                                 {
@@ -1680,8 +1691,9 @@ namespace InstaKiller.DataLayer.Sql
                                     LastName = reader.GetString(reader.GetOrdinal(@"last_name")),
                                     FirstName = reader.GetString(reader.GetOrdinal(@"first_name")),
                                     Name = reader.GetString(reader.GetOrdinal(@"user_name")),
-                                    Email = reader.GetString(reader.GetOrdinal(@"email"))
-                                };
+                                    Email = reader.GetString(reader.GetOrdinal(@"email")),
+                                    PasswordHash = (int)System.Convert.ChangeType(PasswordHash, typeof(int))
+                            };
                             }
                         }
                         return new Person();
