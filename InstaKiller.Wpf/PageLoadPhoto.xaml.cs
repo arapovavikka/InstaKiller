@@ -16,11 +16,11 @@ using System.Windows.Shapes;
 namespace InstaKiller.Wpf
 {
     /// <summary>
-    /// Interaction logic for WindowSignIn.xaml
+    /// Interaction logic for PageLoadPhoto.xaml
     /// </summary>
-    public partial class WindowSignIn : Page
+    public partial class PageLoadPhoto : Page
     {
-        public WindowSignIn()
+        public PageLoadPhoto()
         {
             InitializeComponent();
         }

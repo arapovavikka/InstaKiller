@@ -63,9 +63,7 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="WindowSignIn.xaml.cs">
-      <DependentUpon>WindowSignIn.xaml</DependentUpon>
-    </Compile>
+    <Compile Include="PageAddPhotoViewModel.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -80,13 +78,23 @@
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-    <Page Include="WindowSignIn.xaml">
+    <Page Include="PageLoadPhoto.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="PageSignIn.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="MainWindowViewModel.cs" />
+    <Compile Include="PageLoadPhoto.xaml.cs">
+      <DependentUpon>PageLoadPhoto.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="PageSignIn.xaml.cs">
+      <DependentUpon>PageSignIn.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="PageSignInViewModel.cs" />
     <Compile Include="Properties\AssemblyInfo.cs">
       <SubType>Code</SubType>
     </Compile>

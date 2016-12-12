@@ -16,24 +16,22 @@ using System.Windows.Shapes;
 namespace InstaKiller.Wpf
 {
     /// <summary>
-    /// Interaction logic for MainWindow.xaml
+    /// Interaction logic for PageSignIn.xaml
     /// </summary>
-    public partial class MainWindow : Window
+    public partial class PageSignIn : Page
     {
-        public MainWindow()
+        public PageSignIn()
         {
             InitializeComponent();
-            MainPage.Content = new PageSignIn();
             DataContext = new PageSignInViewModel();
         }
 
-        //private void buttonSignIn_Click(object sender, RoutedEventArgs e)
-        //{
-        //    if (textBoxEmail.Text == "Success!")
-        //    {
-        //        MainPage.Content = new PageAddPhotoViewModel();    
-        //    }
-            
-        //}
+        private void button_Click(object sender, RoutedEventArgs e)
+        {
+            if (textBoxEmail.Text == "Success!")
+            {
+                NavigationService.Navigate(new PageLoadPhoto());
+            }
+        }
     }
 }
